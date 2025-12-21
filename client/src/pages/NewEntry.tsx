@@ -79,20 +79,24 @@ export default function NewEntry() {
                   <Separator className="col-span-2 my-2" />
 
                   <div className="space-y-2">
-                    <Label htmlFor="entry">Entry Price</Label>
-                    <Input id="entry" type="number" placeholder="0.00" className="font-mono" />
+                    <Label htmlFor="rrr">Risk:Reward Ratio</Label>
+                    <Input id="rrr" type="text" placeholder="e.g. 1:2.5" className="font-mono uppercase" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="exit">Exit Price</Label>
-                    <Input id="exit" type="number" placeholder="0.00" className="font-mono" />
+                    <Label htmlFor="sl">Stop Loss (%)</Label>
+                    <Input id="sl" type="number" placeholder="2.0" className="font-mono border-destructive/30 focus-visible:ring-destructive" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sl">Stop Loss</Label>
-                    <Input id="sl" type="number" placeholder="0.00" className="font-mono border-destructive/30 focus-visible:ring-destructive" />
+                    <Label htmlFor="tp">Take Profit (%)</Label>
+                    <Input id="tp" type="number" placeholder="5.0" className="font-mono border-profit/30 focus-visible:ring-profit" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="tp">Take Profit</Label>
-                    <Input id="tp" type="number" placeholder="0.00" className="font-mono border-profit/30 focus-visible:ring-profit" />
+                    <Label>Exit Type</Label>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1 border-primary/20 hover:bg-primary/10 hover:text-primary hover:border-primary">SL Hit</Button>
+                      <Button variant="outline" className="flex-1 border-profit/20 hover:bg-profit/10 hover:text-profit hover:border-profit">TP Hit</Button>
+                      <Button variant="outline" className="flex-1 border-muted/20 hover:bg-muted/10">Breakeven</Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
