@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileNav } from "@/components/layout/MobileNav";
 import { TradeTable } from "@/components/journal/TradeTable";
 import { mockTrades } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
@@ -10,26 +11,27 @@ export default function Journal() {
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        <div className="container mx-auto p-8 max-w-7xl">
-          <header className="mb-8 flex items-center justify-between">
+      <MobileNav />
+      <main className="flex-1 overflow-y-auto md:pt-0 pt-20">
+        <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
+          <header className="mb-6 md:mb-8 flex flex-col gap-2">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Journal</h1>
-              <p className="text-muted-foreground">Detailed history of all your backtested trades.</p>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Journal</h1>
+              <p className="text-xs md:text-sm text-muted-foreground mt-1">Detailed history of all your backtested trades.</p>
             </div>
           </header>
 
-          <div className="mb-6 flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="mb-6 flex flex-col md:flex-row items-stretch md:items-center gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search symbol, notes..."
-                className="pl-8 bg-card/50"
+                placeholder="Search symbol..."
+                className="pl-8 bg-card/50 h-10"
               />
             </div>
             <Select defaultValue="all">
-              <SelectTrigger className="w-[180px] bg-card/50">
+              <SelectTrigger className="w-full md:w-[180px] bg-card/50 h-10">
                 <SelectValue placeholder="Strategy" />
               </SelectTrigger>
               <SelectContent>
@@ -39,17 +41,18 @@ export default function Journal() {
                 <SelectItem value="trend">Trend Following</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2 h-10 md:w-auto">
               <Filter className="h-4 w-4" />
-              More Filters
+              <span className="hidden sm:inline">Filters</span>
             </Button>
-            <div className="flex-1" />
-            <Button>Export CSV</Button>
+            <Button size="sm" className="h-10">Export</Button>
           </div>
 
-          <TradeTable trades={[...mockTrades, ...mockTrades, ...mockTrades]} />
+          <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
+            <TradeTable trades={[...mockTrades, ...mockTrades, ...mockTrades]} />
+          </div>
           
-          <div className="mt-4 flex justify-center">
+          <div className="mt-6 flex justify-center">
             <Button variant="ghost" size="sm" className="text-muted-foreground">Load more trades</Button>
           </div>
         </div>
