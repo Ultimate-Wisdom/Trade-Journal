@@ -1,0 +1,88 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+# --- 1. SETTINGS & THEME ---
+st.set_page_config(page_title="Family Office Terminal", layout="wide", initial_sidebar_state="expanded")
+
+# --- 2. SIDEBAR NAVIGATION ---
+with st.sidebar:
+    st.title("🏛️ FO Terminal")
+    st.markdown("---")
+    menu = st.radio(
+        "NAVIGATION",
+        ["Dashboard", "Portfolio Hub", "Trading Accounts", "Trade Journal"],
+        index=0
+    )
+    st.markdown("---")
+    st.info("S23 Ultra Sync: Active")
+
+# --- 3. LOGIC FOR TRADING ACCOUNTS (DRILL-DOWN) ---
+if menu == "Trading Accounts":
+    st.header("📈 Trading Account Management")
+    
+    # Selection of Category
+    acc_category = st.tabs(["🏢 Prop Firms", "🔐 Personal Live"])
+    
+    with acc_category[0]: # Prop Firms
+        firm = st.selectbox("Select Prop Firm", ["FTMO", "Topstep", "FundingPips", "Other"])
+        
+        # Nested Logic for Accounts
+        if firm == "FTMO":
+            acc_id = st.selectbox("Select FTMO Account", ["Acc #9421 ($100k Challenge)", "Acc #5532 ($200k Funded)"])
+            
+            # KPI Metrics for S23 Ultra
+            c1, c2, c3 = st.columns(3)
+            with c1: st.metric("Account Balance", "$104,200", "+4.2%")
+            with c2: st.metric("Max Daily Loss", "$5,000", "-$800", delta_color="inverse")
+            with c3: st.metric("Profit Target", "$110,000", "Remaining: $5,800")
+        
+        elif firm == "Topstep":
+            st.warning("No Topstep accounts logged. Add one below.")
+
+    with acc_category[1]: # Personal Live
+        broker = st.selectbox("Select Broker/Exchange", ["Binance", "Interactive Brokers", "ByBit"])
+        
+        c1, c2 = st.columns(2)
+        with c1: st.metric("Spot Balance", "$12,450.00")
+        with c2: st.metric("Futures Margin", "$5,000.00")
+
+# --- 4. PORTFOLIO HUB (ALL ASSETS) ---
+elif menu == "Portfolio Hub":
+    st.header("💰 Global Asset Allocation")
+    
+    # Summary Cards
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Net Worth", "$124,500", "+1.2%")
+    col2.metric("Liquid Cash (Tier 1)", "$32,000")
+    col3.metric("Digital Assets (Tier 2)", "$92,500")
+
+    # Asset Table
+    st.subheader("Asset Inventory")
+    df_assets = pd.DataFrame({
+        "Asset": ["BTC", "ETH", "USDT", "S&P 500 Index", "Gold"],
+        "Amount": [0.5, 5.0, 10000, 150, 2],
+        "Location": ["Cold Wallet", "Metamask", "Binance", "IBKR", "Physical Safe"]
+    })
+    st.table(df_assets)
+
+# --- 5. DASHBOARD (HOME) ---
+elif menu == "Dashboard":
+    st.title("Welcome, Analyst.")
+    st.write("Current Market Focus: **DXY Strength & Yield Curve Inversion.**")
+    
+    # Visual Layout
+    
+    st.info("Check your 'Trading Accounts' tab to monitor prop firm drawdown limits.")
+
+# --- 6. TRADE JOURNAL ---
+elif menu == "Trade Journal":
+    st.header("📓 Strategic Trade Journal")
+    with st.form("Journal Entry"):
+        t1, t2 = st.columns(2)
+        asset = t1.text_input("Ticker (e.g. XAUUSD)")
+        size = t2.number_input("Position Size (Lots/Units)")
+        thesis = st.text_area("Macro Thesis (The 'WHY')")
+        
+        if st.form_submit_button("Save Entry"):
+            st.success(f"Trade for {asset} logged locally.")
