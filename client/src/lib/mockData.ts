@@ -3,18 +3,143 @@ export interface Trade {
   date: string;
   pair: string;
   direction: "Long" | "Short";
-  entry: number;
-  exit: number;
-  size: number;
+  entryPrice: number;
+  slPrice: number;
+  tpPrice: number;
+  slPercent: number;
+  tpPercent: number;
+  rrr: string;
+  exitPrice: number;
+  exitType: "SL Hit" | "TP Hit" | "Breakeven";
   pnl: number;
   status: "Win" | "Loss" | "BE";
   strategy: string;
+  notes?: string;
+  type: "journal" | "backtest";
 }
 
+export interface Strategy {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export const mockStrategies: Strategy[] = [
+  { id: "1", name: "Breakout", description: "Break of key levels" },
+  { id: "2", name: "Reversal", description: "Reversal patterns" },
+  { id: "3", name: "Trend Following", description: "Follow the trend" },
+  { id: "4", name: "Gap Fill", description: "Gap filling strategy" },
+];
+
+export const calculateRRR = (entry: number, sl: number, tp: number, direction: "Long" | "Short"): string => {
+  if (direction === "Long") {
+    const risk = entry - sl;
+    const reward = tp - entry;
+    if (risk > 0) {
+      const ratio = (reward / risk).toFixed(2);
+      return `1:${ratio}`;
+    }
+  } else {
+    const risk = sl - entry;
+    const reward = entry - tp;
+    if (risk > 0) {
+      const ratio = (reward / risk).toFixed(2);
+      return `1:${ratio}`;
+    }
+  }
+  return "0:0";
+};
+
+export const calculateSLPercent = (entry: number, sl: number, direction: "Long" | "Short"): number => {
+  if (direction === "Long") {
+    return Math.abs(((sl - entry) / entry) * 100);
+  } else {
+    return Math.abs(((entry - sl) / entry) * 100);
+  }
+};
+
+export const calculateTPPercent = (entry: number, tp: number, direction: "Long" | "Short"): number => {
+  if (direction === "Long") {
+    return Math.abs(((tp - entry) / entry) * 100);
+  } else {
+    return Math.abs(((entry - tp) / entry) * 100);
+  }
+};
+
 export const mockTrades: Trade[] = [
-  { id: "1", date: "2023-10-25", pair: "EUR/USD", direction: "Long", entry: 1.0520, exit: 1.0580, size: 2.0, pnl: 1200, status: "Win", strategy: "Breakout" },
-  { id: "2", date: "2023-10-24", pair: "GBP/JPY", direction: "Short", entry: 182.50, exit: 182.80, size: 1.5, pnl: -450, status: "Loss", strategy: "Reversal" },
-  { id: "3", date: "2023-10-23", pair: "BTC/USD", direction: "Long", entry: 34100, exit: 35200, size: 0.5, pnl: 550, status: "Win", strategy: "Trend" },
-  { id: "4", date: "2023-10-22", pair: "NVDA", direction: "Short", entry: 420.00, exit: 415.00, size: 100, pnl: 500, status: "Win", strategy: "Gap Fill" },
-  { id: "5", date: "2023-10-21", pair: "XAU/USD", direction: "Long", entry: 1980.50, exit: 1975.00, size: 1.0, pnl: -550, status: "Loss", strategy: "Breakout" },
+  {
+    id: "1",
+    date: "2023-10-25",
+    pair: "EUR/USD",
+    direction: "Long",
+    entryPrice: 1.052,
+    slPrice: 1.045,
+    tpPrice: 1.065,
+    slPercent: 0.67,
+    tpPercent: 1.24,
+    rrr: "1:1.85",
+    exitPrice: 1.065,
+    exitType: "TP Hit",
+    pnl: 1200,
+    status: "Win",
+    strategy: "Breakout",
+    type: "journal",
+  },
+  {
+    id: "2",
+    date: "2023-10-24",
+    pair: "GBP/JPY",
+    direction: "Short",
+    entryPrice: 182.5,
+    slPrice: 184.5,
+    tpPrice: 180.5,
+    slPercent: 1.1,
+    tpPercent: 1.1,
+    rrr: "1:1.0",
+    exitPrice: 184.5,
+    exitType: "SL Hit",
+    pnl: -450,
+    status: "Loss",
+    strategy: "Reversal",
+    type: "journal",
+  },
+];
+
+export const mockBacktests: Trade[] = [
+  {
+    id: "bt1",
+    date: "2023-10-20",
+    pair: "BTC/USD",
+    direction: "Long",
+    entryPrice: 34100,
+    slPrice: 33500,
+    tpPrice: 35500,
+    slPercent: 1.76,
+    tpPercent: 4.1,
+    rrr: "1:2.33",
+    exitPrice: 35500,
+    exitType: "TP Hit",
+    pnl: 3500,
+    status: "Win",
+    strategy: "Trend Following",
+    type: "backtest",
+  },
+  {
+    id: "bt2",
+    date: "2023-10-19",
+    pair: "NVDA",
+    direction: "Short",
+    entryPrice: 420,
+    slPrice: 430,
+    tpPrice: 410,
+    slPercent: 2.38,
+    tpPercent: 2.38,
+    rrr: "1:1.0",
+    exitPrice: 410,
+    exitType: "TP Hit",
+    pnl: 2000,
+    status: "Win",
+    strategy: "Gap Fill",
+    type: "backtest",
+  },
 ];

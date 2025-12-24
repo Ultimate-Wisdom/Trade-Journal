@@ -9,12 +9,14 @@ import Journal from "@/pages/Journal";
 import NewEntry from "@/pages/NewEntry";
 import Portfolio from "@/pages/Portfolio";
 import TradingAccounts from "@/pages/TradingAccounts";
+import Backtest from "@/pages/Backtest";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/journal" component={Journal} />
+      <Route path="/backtest" component={Backtest} />
       <Route path="/new-entry" component={NewEntry} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/accounts" component={TradingAccounts} />

@@ -1,4 +1,3 @@
-import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { EquityChart } from "@/components/dashboard/EquityChart";
@@ -49,7 +48,7 @@ export default function Dashboard() {
           <div className="space-y-4">
             <h3 className="text-lg md:text-xl font-semibold tracking-tight">Recent Trades</h3>
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-              <TradeTable trades={mockTrades} />
+              <TradeTable trades={mockTrades.filter((t) => t.type === "journal")} />
             </div>
           </div>
         </div>

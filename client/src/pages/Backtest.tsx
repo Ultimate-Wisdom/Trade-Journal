@@ -1,13 +1,13 @@
 import { MobileNav } from "@/components/layout/MobileNav";
 import { TradeTable } from "@/components/journal/TradeTable";
-import { mockTrades } from "@/lib/mockData";
+import { mockBacktests } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Filter, PlusCircle } from "lucide-react";
 import { Link } from "wouter";
 
-export default function Journal() {
+export default function Backtest() {
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
@@ -15,13 +15,13 @@ export default function Journal() {
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
           <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Trade Journal</h1>
-              <p className="text-xs md:text-sm text-muted-foreground mt-1">Your live and real trading history.</p>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Backtest History</h1>
+              <p className="text-xs md:text-sm text-muted-foreground mt-1">All your backtested trades and results.</p>
             </div>
             <Link href="/new-entry">
               <Button className="gap-2 w-full md:w-auto">
                 <PlusCircle className="h-4 w-4" />
-                New Entry
+                New Backtest
               </Button>
             </Link>
           </header>
@@ -54,11 +54,11 @@ export default function Journal() {
           </div>
 
           <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-            <TradeTable trades={mockTrades.filter((t) => t.type === "journal")} />
+            <TradeTable trades={mockBacktests} />
           </div>
           
           <div className="mt-6 flex justify-center">
-            <Button variant="ghost" size="sm" className="text-muted-foreground">Load more trades</Button>
+            <Button variant="ghost" size="sm" className="text-muted-foreground">Load more backtests</Button>
           </div>
         </div>
       </main>

@@ -12,6 +12,7 @@ export function MobileNav() {
   const links = [
     { href: "/", label: "Dashboard", icon: Home },
     { href: "/journal", label: "Journal", icon: BookOpen },
+    { href: "/backtest", label: "Backtest", icon: BarChart2 },
     { href: "/accounts", label: "Accounts", icon: Briefcase },
     { href: "/portfolio", label: "Portfolio", icon: TrendingUp },
     { href: "/settings", label: "Settings", icon: Settings },
