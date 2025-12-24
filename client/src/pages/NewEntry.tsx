@@ -14,9 +14,8 @@ import { Link } from "wouter";
 export default function NewEntry() {
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
-      <Sidebar />
       <MobileNav />
-      <main className="flex-1 overflow-y-auto md:pt-0 pt-20">
+      <main className="flex-1 overflow-y-auto pt-20">
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-4xl">
           <header className="mb-6 md:mb-8">
             <Link href="/">

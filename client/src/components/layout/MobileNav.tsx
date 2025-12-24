@@ -17,7 +17,7 @@ export function MobileNav() {
   ];
 
   return (
-    <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar border-b h-16 flex items-center justify-between px-4">
+    <div className="fixed top-0 left-0 right-0 z-50 bg-sidebar border-b h-16 flex items-center justify-between px-4">
       <div className="flex items-center gap-2 font-mono text-lg font-bold tracking-tighter text-primary">
         <div className="h-5 w-5 rounded bg-primary" />
         <span className="text-sm">LOG</span>

@@ -10,9 +10,8 @@ import generatedImage from "@assets/generated_images/abstract_financial_data_vis
 export default function Dashboard() {
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
-      <Sidebar />
       <MobileNav />
-      <main className="flex-1 overflow-y-auto md:pt-0 pt-20">
+      <main className="flex-1 overflow-y-auto pt-20">
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
           <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
