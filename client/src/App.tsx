@@ -7,6 +7,8 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Journal from "@/pages/Journal";
 import NewEntry from "@/pages/NewEntry";
+import Portfolio from "@/pages/Portfolio";
+import TradingAccounts from "@/pages/TradingAccounts";
 
 function Router() {
   return (
@@ -14,6 +16,8 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/journal" component={Journal} />
       <Route path="/new-entry" component={NewEntry} />
+      <Route path="/portfolio" component={Portfolio} />
+      <Route path="/accounts" component={TradingAccounts} />
       <Route path="/analytics" component={Dashboard} /> 
       {/* Analytics redirects to dashboard for now */}
       <Route component={NotFound} />
