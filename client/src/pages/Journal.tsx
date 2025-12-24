@@ -1,11 +1,11 @@
-import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { TradeTable } from "@/components/journal/TradeTable";
 import { mockTrades } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, PlusCircle } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Journal() {
   return (
@@ -13,11 +13,17 @@ export default function Journal() {
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
-          <header className="mb-6 md:mb-8 flex flex-col gap-2">
+          <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Journal</h1>
               <p className="text-xs md:text-sm text-muted-foreground mt-1">Detailed history of all your backtested trades.</p>
             </div>
+            <Link href="/new-entry">
+              <Button className="gap-2 w-full md:w-auto">
+                <PlusCircle className="h-4 w-4" />
+                New Entry
+              </Button>
+            </Link>
           </header>
 
           <div className="mb-6 flex flex-col md:flex-row items-stretch md:items-center gap-3">

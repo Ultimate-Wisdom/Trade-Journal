@@ -19,25 +19,12 @@ export function MobileNav() {
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-sidebar border-b h-16 flex items-center justify-between px-4">
-      <div className="flex items-center gap-2 font-mono text-lg font-bold tracking-tighter text-primary">
-        <div className="h-5 w-5 rounded bg-primary" />
-        <span className="text-sm">LOG</span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Link href="/new-entry">
-          <Button size="sm" className="gap-1">
-            <PlusCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">Entry</span>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="sm">
+            <Menu className="h-5 w-5" />
           </Button>
-        </Link>
-
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="sm">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
+        </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
             <div className="flex flex-col h-full">
               <div className="border-b px-6 py-4 flex items-center gap-2">
@@ -79,7 +66,13 @@ export function MobileNav() {
             </div>
           </SheetContent>
         </Sheet>
+
+      <div className="flex items-center gap-2 font-mono text-lg font-bold tracking-tighter text-primary">
+        <div className="h-5 w-5 rounded bg-primary" />
+        <span className="text-sm">LOG</span>
       </div>
+
+      <div className="w-10" />
     </div>
   );
 }
