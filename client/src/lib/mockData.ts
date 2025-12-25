@@ -143,3 +143,69 @@ export const mockBacktests: Trade[] = [
     type: "backtest",
   },
 ];
+
+export interface StrategyStats {
+  name: string;
+  total: number;
+  wins: number;
+  winrate: number;
+}
+
+export interface StrategyRRRStats extends StrategyStats {
+  rrr: string;
+  pair: string;
+}
+
+export const calculateStrategyWinrates = (trades: Trade[]): StrategyStats[] => {
+  const strategyMap = new Map<string, { total: number; wins: number }>();
+
+  trades.forEach((trade) => {
+    const current = strategyMap.get(trade.strategy) || { total: 0, wins: 0 };
+    current.total += 1;
+    if (trade.status === "Win") {
+      current.wins += 1;
+    }
+    strategyMap.set(trade.strategy, current);
+  });
+
+  return Array.from(strategyMap.entries())
+    .map(([name, data]) => ({
+      name,
+      total: data.total,
+      wins: data.wins,
+      winrate: (data.wins / data.total) * 100,
+    }))
+    .sort((a, b) => b.winrate - a.winrate);
+};
+
+export const calculateTopStrategyRRRCombos = (trades: Trade[], limit: number = 3): StrategyRRRStats[] => {
+  const comboMap = new Map<string, { total: number; wins: number; pair: string; rrr: string; strategy: string }>();
+
+  trades.forEach((trade) => {
+    const key = `${trade.strategy}|${trade.rrr}|${trade.pair}`;
+    const current = comboMap.get(key) || { 
+      total: 0, 
+      wins: 0, 
+      pair: trade.pair, 
+      rrr: trade.rrr,
+      strategy: trade.strategy 
+    };
+    current.total += 1;
+    if (trade.status === "Win") {
+      current.wins += 1;
+    }
+    comboMap.set(key, current);
+  });
+
+  return Array.from(comboMap.values())
+    .map((data) => ({
+      name: `${data.strategy} @ ${data.rrr}`,
+      pair: data.pair,
+      rrr: data.rrr,
+      total: data.total,
+      wins: data.wins,
+      winrate: (data.wins / data.total) * 100,
+    }))
+    .sort((a, b) => b.winrate - a.winrate)
+    .slice(0, limit);
+};

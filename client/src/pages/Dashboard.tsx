@@ -1,12 +1,15 @@
 import { MobileNav } from "@/components/layout/MobileNav";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { EquityChart } from "@/components/dashboard/EquityChart";
+import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
 import { TradeTable } from "@/components/journal/TradeTable";
 import { mockTrades } from "@/lib/mockData";
 import { Activity, DollarSign, TrendingUp, BarChart3 } from "lucide-react";
 import generatedImage from "@assets/generated_images/abstract_financial_data_visualization_dark_mode.png";
 
 export default function Dashboard() {
+  const journalTrades = mockTrades.filter((t) => t.type === "journal");
+
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
@@ -45,10 +48,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <StrategyInsights trades={journalTrades} />
+
+          <div className="space-y-4 mt-6 md:mt-8">
             <h3 className="text-lg md:text-xl font-semibold tracking-tight">Recent Trades</h3>
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-              <TradeTable trades={mockTrades.filter((t) => t.type === "journal")} />
+              <TradeTable trades={journalTrades} />
             </div>
           </div>
         </div>

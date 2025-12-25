@@ -1,4 +1,5 @@
 import { MobileNav } from "@/components/layout/MobileNav";
+import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
 import { TradeTable } from "@/components/journal/TradeTable";
 import { mockBacktests } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
@@ -70,7 +71,9 @@ export default function Backtest() {
             </Button>
           </div>
 
-          <div className="space-y-4">
+          <StrategyInsights trades={backtests} />
+
+          <div className="space-y-4 mt-6 md:mt-8">
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
               <TradeTable trades={backtests} />
             </div>
