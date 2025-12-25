@@ -70,9 +70,9 @@ export function MobileNav() {
           </SheetContent>
         </Sheet>
 
-      <div className="flex items-center gap-1.5 font-mono text-lg font-bold tracking-tighter text-primary">
-        <span className="text-primary">OPES</span>
-        <span className="font-sans text-xs text-muted-foreground">by Fhynk</span>
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-mono text-lg font-bold tracking-tighter text-primary">OPES</span>
+        <span className="font-sans text-xs text-muted-foreground">by Fhynk Capital</span>
       </div>
 
       <div className="w-10" />
