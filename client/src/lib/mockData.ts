@@ -24,6 +24,14 @@ export interface Strategy {
   description?: string;
 }
 
+export interface RemovedStrategy {
+  name: string;
+  removedDate: string;
+  removalReason: string;
+  winrate: number;
+  tradesCount: number;
+}
+
 export const mockStrategies: Strategy[] = [
   { id: "1", name: "Breakout", description: "Break of key levels" },
   { id: "2", name: "Reversal", description: "Reversal patterns" },
