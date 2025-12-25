@@ -7,14 +7,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Trade } from "@/lib/mockData";
+import { Trash2 } from "lucide-react";
 
 interface TradeTableProps {
   trades: Trade[];
+  onDelete?: (id: string) => void;
 }
 
-export function TradeTable({ trades }: TradeTableProps) {
+export function TradeTable({ trades, onDelete }: TradeTableProps) {
   return (
     <div className="rounded-md border bg-card/50 backdrop-blur-sm">
       <Table>
@@ -29,6 +32,7 @@ export function TradeTable({ trades }: TradeTableProps) {
             <TableHead className="text-right">Exit</TableHead>
             <TableHead className="text-right">P&L</TableHead>
             <TableHead className="text-right">Status</TableHead>
+            {onDelete && <TableHead className="w-10"></TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -64,6 +68,18 @@ export function TradeTable({ trades }: TradeTableProps) {
                   {trade.status}
                 </Badge>
               </TableCell>
+              {onDelete && (
+                <TableCell className="text-right">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => onDelete(trade.id)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

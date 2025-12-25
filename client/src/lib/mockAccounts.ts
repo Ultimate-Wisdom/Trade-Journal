@@ -19,6 +19,27 @@ export interface PortfolioAsset {
   assetClass: string;
 }
 
+export interface RemovedAsset {
+  id: string;
+  symbol: string;
+  amount: number;
+  value: number;
+  location: string;
+  assetClass: string;
+  removedDate: string;
+  removalReason: string;
+}
+
+export interface RemovedAccount {
+  id: string;
+  name: string;
+  firm?: string;
+  broker?: string;
+  balance: number;
+  removedDate: string;
+  removalReason: string;
+}
+
 export const mockAccounts: Account[] = [
   {
     id: "1",
