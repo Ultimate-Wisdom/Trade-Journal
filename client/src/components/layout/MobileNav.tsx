@@ -28,9 +28,11 @@ export function MobileNav() {
         </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
             <div className="flex flex-col h-full">
-              <div className="border-b px-6 py-4 flex items-center gap-2">
-                <div className="h-6 w-6 rounded bg-primary" />
-                <span className="font-mono font-bold text-primary">TRADELOG</span>
+              <div className="border-b px-6 py-4">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-mono font-bold text-lg text-primary">OPES</span>
+                  <span className="font-sans text-xs text-muted-foreground">by Fhynk Capital</span>
+                </div>
               </div>
               <nav className="flex-1 overflow-y-auto py-4 px-2">
                 <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 mb-4">Menu</div>
@@ -68,9 +70,9 @@ export function MobileNav() {
           </SheetContent>
         </Sheet>
 
-      <div className="flex items-center gap-2 font-mono text-lg font-bold tracking-tighter text-primary">
-        <div className="h-5 w-5 rounded bg-primary" />
-        <span className="text-sm">LOG</span>
+      <div className="flex items-center gap-1.5 font-mono text-lg font-bold tracking-tighter text-primary">
+        <span className="text-primary">OPES</span>
+        <span className="font-sans text-xs text-muted-foreground">by Fhynk</span>
       </div>
 
       <div className="w-10" />

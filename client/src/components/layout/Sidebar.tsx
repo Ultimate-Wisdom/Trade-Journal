@@ -15,9 +15,9 @@ export function Sidebar() {
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center border-b px-6">
-        <div className="flex items-center gap-2 font-mono text-xl font-bold tracking-tighter text-primary">
-          <div className="h-6 w-6 rounded bg-primary" />
-          TRADELOG
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-mono text-xl font-bold tracking-tighter text-primary">OPES</span>
+          <span className="font-sans text-xs text-muted-foreground">by Fhynk Capital</span>
         </div>
       </div>
       
