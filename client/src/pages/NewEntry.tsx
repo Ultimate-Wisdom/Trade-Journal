@@ -59,7 +59,7 @@ export default function NewEntry() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight">New Trade Entry</h1>
-                <p className="text-xs md:text-sm text-muted-foreground mt-1">Log a new journal or backtest trade.</p>
+                <p className="text-xs md:text-sm text-muted-foreground mt-1">Log a new live trading entry.</p>
               </div>
               <div className="flex gap-2 w-full md:w-auto">
                 <Button variant="outline" className="flex-1 md:flex-none h-10">Draft</Button>
@@ -213,56 +213,37 @@ export default function NewEntry() {
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3">
-              <Card className="md:col-span-2 border-sidebar-border bg-card/50 backdrop-blur-sm">
-                <CardHeader className="pb-3 md:pb-6">
-                  <CardTitle className="text-base md:text-lg">Analysis & Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Tabs defaultValue="notes" className="w-full">
-                    <TabsList className="mb-4 grid w-full grid-cols-3">
-                      <TabsTrigger value="notes" className="text-xs">Notes</TabsTrigger>
-                      <TabsTrigger value="psychology" className="text-xs">Psychology</TabsTrigger>
-                      <TabsTrigger value="tags" className="text-xs">Tags</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="notes">
-                      <Textarea
-                        placeholder="Describe your rationale for this trade..."
-                        className="min-h-[200px] font-mono text-xs md:text-sm"
-                      />
-                    </TabsContent>
-                    <TabsContent value="psychology">
-                      <Textarea
-                        placeholder="How were you feeling entering this trade? FOMO? Confidence?"
-                        className="min-h-[200px] text-xs md:text-sm"
-                      />
-                    </TabsContent>
-                    <TabsContent value="tags">
-                      <div className="p-4 border border-dashed rounded-md text-center text-muted-foreground text-xs md:text-sm">
-                        Add tags like #FOMO, #NewsEvent, #LateEntry
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-
-              <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                <CardHeader className="pb-3 md:pb-6">
-                  <CardTitle className="text-base md:text-lg">Trade Type</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs text-muted-foreground">Select entry type:</p>
-                  <div className="flex flex-col gap-2">
-                    <Button variant="outline" className="justify-start h-10 text-xs">
-                      📔 Journal Entry
-                    </Button>
-                    <Button variant="outline" className="justify-start h-10 text-xs">
-                      📊 Backtest Entry
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+              <CardHeader className="pb-3 md:pb-6">
+                <CardTitle className="text-base md:text-lg">Analysis & Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="notes" className="w-full">
+                  <TabsList className="mb-4 grid w-full grid-cols-3">
+                    <TabsTrigger value="notes" className="text-xs">Notes</TabsTrigger>
+                    <TabsTrigger value="psychology" className="text-xs">Psychology</TabsTrigger>
+                    <TabsTrigger value="tags" className="text-xs">Tags</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="notes">
+                    <Textarea
+                      placeholder="Describe your rationale for this trade..."
+                      className="min-h-[200px] font-mono text-xs md:text-sm"
+                    />
+                  </TabsContent>
+                  <TabsContent value="psychology">
+                    <Textarea
+                      placeholder="How were you feeling entering this trade? FOMO? Confidence?"
+                      className="min-h-[200px] text-xs md:text-sm"
+                    />
+                  </TabsContent>
+                  <TabsContent value="tags">
+                    <div className="p-4 border border-dashed rounded-md text-center text-muted-foreground text-xs md:text-sm">
+                      Add tags like #FOMO, #NewsEvent, #LateEntry
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>

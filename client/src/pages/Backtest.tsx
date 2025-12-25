@@ -4,10 +4,24 @@ import { mockBacktests } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, PlusCircle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Search, Filter, PlusCircle, Save, Trash2 } from "lucide-react";
 import { Link } from "wouter";
+import { useState } from "react";
 
 export default function Backtest() {
+  const [backtests, setBacktests] = useState(mockBacktests);
+
+  const handleSave = () => {
+    alert("Backtest session saved successfully!");
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this backtest entry?")) {
+      setBacktests(backtests.filter((bt) => bt.id !== id));
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
@@ -50,16 +64,58 @@ export default function Backtest() {
               <Filter className="h-4 w-4" />
               <span className="hidden sm:inline">Filters</span>
             </Button>
-            <Button size="sm" className="h-10">Export</Button>
+            <Button size="sm" className="gap-2 h-10" onClick={handleSave}>
+              <Save className="h-4 w-4" />
+              Save Session
+            </Button>
           </div>
 
-          <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-            <TradeTable trades={mockBacktests} />
+          <div className="space-y-4">
+            <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
+              <TradeTable trades={backtests} />
+            </div>
+
+            {backtests.length > 0 && (
+              <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <Button 
+                      variant="outline" 
+                      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => {
+                        if (confirm("Delete all backtest data for this session?")) {
+                          setBacktests([]);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Clear Session
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="gap-2"
+                      onClick={handleSave}
+                    >
+                      <Save className="h-4 w-4" />
+                      Export Session
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
           
-          <div className="mt-6 flex justify-center">
-            <Button variant="ghost" size="sm" className="text-muted-foreground">Load more backtests</Button>
-          </div>
+          {backtests.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">No backtest data yet. Start by creating a new backtest!</p>
+              <Link href="/new-entry">
+                <Button className="gap-2">
+                  <PlusCircle className="h-4 w-4" />
+                  Create Backtest Entry
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </main>
     </div>
