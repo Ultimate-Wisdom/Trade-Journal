@@ -1,4 +1,4 @@
-import { Home, BookOpen, BarChart2, Settings, PlusCircle, Menu, Briefcase, TrendingUp } from "lucide-react";
+import { Home, BookOpen, BarChart2, Settings, PlusCircle, Menu, Briefcase, TrendingUp, Calendar } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -12,6 +12,7 @@ export function MobileNav() {
   const links = [
     { href: "/", label: "Dashboard", icon: Home },
     { href: "/journal", label: "Journal", icon: BookOpen },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/backtest", label: "Backtest", icon: BarChart2 },
     { href: "/accounts", label: "Accounts", icon: Briefcase },
     { href: "/portfolio", label: "Portfolio", icon: TrendingUp },

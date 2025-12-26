@@ -10,6 +10,7 @@ import NewEntry from "@/pages/NewEntry";
 import Portfolio from "@/pages/Portfolio";
 import TradingAccounts from "@/pages/TradingAccounts";
 import Backtest from "@/pages/Backtest";
+import PNLCalendarDashboard from "@/pages/PNLCalendarDashboard";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/journal" component={Journal} />
       <Route path="/backtest" component={Backtest} />
+      <Route path="/calendar" component={PNLCalendarDashboard} />
       <Route path="/new-entry" component={NewEntry} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/accounts" component={TradingAccounts} />
