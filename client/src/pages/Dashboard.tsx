@@ -2,6 +2,8 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { EquityChart } from "@/components/dashboard/EquityChart";
 import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
+import { PNLCalendar } from "@/components/dashboard/PNLCalendar";
+import { MostProfitableDay } from "@/components/dashboard/MostProfitableDay";
 import { TradeTable } from "@/components/journal/TradeTable";
 import { mockTrades } from "@/lib/mockData";
 import { Activity, DollarSign, TrendingUp, BarChart3 } from "lucide-react";
@@ -49,6 +51,13 @@ export default function Dashboard() {
           </div>
 
           <StrategyInsights trades={journalTrades} />
+
+          <div className="grid gap-6 md:gap-4 md:grid-cols-3 mt-6 md:mt-8">
+            <div className="md:col-span-2">
+              <PNLCalendar trades={journalTrades} />
+            </div>
+            <MostProfitableDay trades={journalTrades} />
+          </div>
 
           <div className="space-y-4 mt-6 md:mt-8">
             <h3 className="text-lg md:text-xl font-semibold tracking-tight">Recent Trades</h3>
