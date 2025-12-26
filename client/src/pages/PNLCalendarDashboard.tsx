@@ -194,7 +194,7 @@ export default function PNLCalendarDashboard() {
           </div>
 
           <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm mb-8">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
               <div className="flex items-center gap-4">
                 <Button variant="ghost" size="sm" onClick={handlePrevMonth}>
                   <ChevronLeft className="h-4 w-4" />
@@ -215,8 +215,8 @@ export default function PNLCalendarDashboard() {
                 </p>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-7 gap-1 mb-6">
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-7 gap-1">
                 {dayNames.map((day) => (
                   <div key={day} className="h-10 flex items-center justify-center text-xs font-semibold text-muted-foreground">
                     {day}
@@ -269,10 +269,10 @@ export default function PNLCalendarDashboard() {
 
               {selectedDate && (
                 <div className="p-4 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
-                  <h4 className="font-semibold mb-3">
+                  <h4 className="font-semibold mb-3 text-sm">
                     Trades on {new Date(selectedDate).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
                   </h4>
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  <div className="space-y-2 max-h-[180px] overflow-y-auto">
                     {filteredTrades
                       .filter((t) => t.date === selectedDate)
                       .map((trade) => (
@@ -292,67 +292,77 @@ export default function PNLCalendarDashboard() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3 mb-8">
             <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-base">Weekly Summary</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Win Rate</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  {weeklyData.length > 0 ? (
-                    weeklyData.map((week, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-3 rounded-lg bg-sidebar-accent/30">
-                        <div>
-                          <p className="text-sm font-semibold">Week {idx + 1}</p>
-                          <p className="text-xs text-muted-foreground">{week.wins}W / {week.trades}T</p>
-                        </div>
-                        <p className={`text-lg font-bold font-mono ${week.pnl > 0 ? "text-profit" : "text-destructive"}`}>
-                          ${week.pnl.toLocaleString()}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No trades this month</p>
-                  )}
-                </div>
+                <p className="text-3xl font-bold">
+                  {monthlyStats.totalTrades > 0
+                    ? ((monthlyStats.totalWins / monthlyStats.totalTrades) * 100).toFixed(1)
+                    : "0"}
+                  %
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {monthlyStats.totalWins}W / {monthlyStats.totalTrades} total
+                </p>
               </CardContent>
             </Card>
 
             <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-base">Performance Metrics</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Avg P&L Per Trade</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-sidebar-accent/30">
-                    <p className="text-xs text-muted-foreground mb-1">Win Rate</p>
-                    <p className="text-2xl font-bold">
-                      {monthlyStats.totalTrades > 0
-                        ? ((monthlyStats.totalWins / monthlyStats.totalTrades) * 100).toFixed(1)
-                        : "0"}
-                      %
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-sidebar-accent/30">
-                    <p className="text-xs text-muted-foreground mb-1">Avg Daily P&L</p>
-                    <p className="text-2xl font-bold text-profit">
-                      ${monthlyStats.totalTrades > 0 ? (monthlyStats.totalPNL / monthlyStats.totalTrades).toFixed(0) : 0}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-sidebar-accent/30">
-                    <p className="text-xs text-muted-foreground mb-1">Best Day</p>
-                    <p className="text-lg font-bold">
-                      {calendarData
-                        .filter((d) => d !== null)
-                        .reduce((max, curr) => (curr && curr.pnl > max.pnl ? curr : max), { pnl: 0, dayNum: 0 }).dayNum === 0
-                        ? "—"
-                        : `$${Math.max(...calendarData.filter((d) => d !== null && d.pnl > 0).map((d) => d?.pnl || 0)).toLocaleString()}`}
-                    </p>
-                  </div>
-                </div>
+                <p className={`text-3xl font-bold ${monthlyStats.totalPNL >= 0 ? "text-profit" : "text-destructive"}`}>
+                  ${monthlyStats.totalTrades > 0 ? (monthlyStats.totalPNL / monthlyStats.totalTrades).toFixed(0) : 0}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {monthlyStats.totalTrades} trades
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Best Trading Day</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-profit">
+                  {calendarData
+                    .filter((d) => d.pnl > 0)
+                    .reduce((max, curr) => (curr.pnl > max.pnl ? curr : max), { pnl: 0, dayNum: 0 }).dayNum === 0
+                    ? "—"
+                    : `$${Math.max(...calendarData.filter((d) => d.pnl > 0).map((d) => d.pnl || 0)).toLocaleString()}`}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">Peak daily P&L</p>
               </CardContent>
             </Card>
           </div>
+
+          <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Weekly Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {weeklyData.length > 0 ? (
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                  {weeklyData.map((week, idx) => (
+                    <div key={idx} className="p-3 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">Week {idx + 1}</p>
+                      <p className={`text-lg font-bold font-mono ${week.pnl > 0 ? "text-profit" : "text-destructive"}`}>
+                        ${week.pnl.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">{week.wins}W / {week.trades}T</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-6">No trades this month</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
