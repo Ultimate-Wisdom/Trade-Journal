@@ -73,9 +73,32 @@ export default function PNLCalendarDashboard() {
       }
     });
 
-    const calendar: (DayData | null)[] = Array(startingDayOfWeek).fill(null);
+    const calendar: DayData[] = [];
+    
+    // Add empty days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      calendar.push({
+        date: "",
+        dayNum: 0,
+        pnl: 0,
+        trades: 0,
+        wins: 0,
+        losses: 0,
+      });
+    }
+    
+    // Add actual days
     for (let i = 1; i <= daysInMonth; i++) {
-      calendar.push(dayMap.get(i) || null);
+      calendar.push(
+        dayMap.get(i) || {
+          date: "",
+          dayNum: i,
+          pnl: 0,
+          trades: 0,
+          wins: 0,
+          losses: 0,
+        }
+      );
     }
 
     return calendar;
@@ -199,31 +222,49 @@ export default function PNLCalendarDashboard() {
                     {day}
                   </div>
                 ))}
-                {calendarData.map((day, index) => (
-                  <div
-                    key={index}
-                    onClick={() => day && setSelectedDate(day.date)}
-                    className={`aspect-square rounded-lg border flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-primary ${
-                      day === null
-                        ? "bg-transparent border-transparent"
-                        : day.pnl > 0
-                          ? "bg-profit/15 border-profit/40 hover:bg-profit/25"
-                          : day.pnl < 0
-                            ? "bg-destructive/15 border-destructive/40 hover:bg-destructive/25"
-                            : "bg-muted/30 border-sidebar-border"
-                    } ${selectedDate === day?.date ? "ring-2 ring-primary" : ""}`}
-                  >
-                    {day && (
-                      <>
-                        <div className="text-xs font-semibold">{day.dayNum}</div>
-                        <div className={`text-xs font-mono font-bold ${day.pnl > 0 ? "text-profit" : day.pnl < 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                          ${Math.abs(day.pnl / 100).toFixed(1)}k
-                        </div>
-                        <div className="text-xs text-muted-foreground">{day.trades}T</div>
-                      </>
-                    )}
-                  </div>
-                ))}
+                {calendarData.map((day, index) => {
+                  const isEmptyDay = day.dayNum === 0;
+                  const isCurrentMonth = !isEmptyDay;
+                  const bgColor = isEmptyDay
+                    ? "bg-background/40 border-transparent"
+                    : day.trades > 0
+                      ? day.pnl > 0
+                        ? "bg-profit/20 border-profit/50 hover:bg-profit/30"
+                        : "bg-destructive/20 border-destructive/50 hover:bg-destructive/30"
+                      : "bg-muted/40 border-sidebar-border";
+
+                  return (
+                    <div
+                      key={index}
+                      onClick={() => day.date && setSelectedDate(day.date)}
+                      className={`aspect-square rounded-lg border-2 flex flex-col items-center justify-center text-center transition-all ${
+                        isEmptyDay ? "cursor-default" : "cursor-pointer hover:shadow-md"
+                      } ${bgColor} ${
+                        selectedDate === day.date && day.date ? "ring-2 ring-primary ring-offset-1" : ""
+                      }`}
+                    >
+                      {isCurrentMonth && (
+                        <>
+                          <div className="text-sm font-bold">{day.dayNum}</div>
+                          {day.trades > 0 ? (
+                            <>
+                              <div
+                                className={`text-xs font-mono font-bold ${
+                                  day.pnl > 0 ? "text-profit" : "text-destructive"
+                                }`}
+                              >
+                                ${Math.abs(day.pnl / 100).toFixed(1)}k
+                              </div>
+                              <div className="text-xs text-muted-foreground">{day.trades}T</div>
+                            </>
+                          ) : (
+                            <div className="text-xs text-muted-foreground/50">—</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {selectedDate && (
