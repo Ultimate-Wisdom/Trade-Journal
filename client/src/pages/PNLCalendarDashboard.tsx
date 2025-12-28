@@ -193,32 +193,32 @@ export default function PNLCalendarDashboard() {
             </div>
           </div>
 
-          <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm mb-8">
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <div className="flex items-center gap-4">
-                <Button variant="ghost" size="sm" onClick={handlePrevMonth}>
+          <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm mb-6">
+            <CardHeader className="flex flex-row items-center justify-between py-3 px-6">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={handlePrevMonth} className="h-8 w-8 p-0">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <CardTitle className="text-2xl min-w-[200px]">
+                <CardTitle className="text-xl min-w-[180px]">
                   {monthName} {year}
                 </CardTitle>
-                <Button variant="ghost" size="sm" onClick={handleNextMonth}>
+                <Button variant="ghost" size="sm" onClick={handleNextMonth} className="h-8 w-8 p-0">
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-profit">
+                <p className="text-xl font-bold text-profit">
                   ${monthlyStats.totalPNL.toLocaleString()}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground leading-tight">
                   {monthlyStats.totalTrades} trades • {monthlyStats.totalWins}W {monthlyStats.totalLosses}L
                 </p>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-7 gap-1">
+            <CardContent className="px-6 pb-4">
+              <div className="grid grid-cols-7 gap-0.5 mb-4">
                 {dayNames.map((day) => (
-                  <div key={day} className="h-10 flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                  <div key={day} className="h-8 flex items-center justify-center text-xs font-semibold text-muted-foreground">
                     {day}
                   </div>
                 ))}
@@ -229,36 +229,36 @@ export default function PNLCalendarDashboard() {
                     ? "bg-background/40 border-transparent"
                     : day.trades > 0
                       ? day.pnl > 0
-                        ? "bg-profit/20 border-profit/50 hover:bg-profit/30"
-                        : "bg-destructive/20 border-destructive/50 hover:bg-destructive/30"
+                        ? "bg-profit/20 border-profit/50 hover:bg-profit/25"
+                        : "bg-destructive/20 border-destructive/50 hover:bg-destructive/25"
                       : "bg-muted/40 border-sidebar-border";
 
                   return (
                     <div
                       key={index}
                       onClick={() => day.date && setSelectedDate(day.date)}
-                      className={`aspect-square rounded-lg border-2 flex flex-col items-center justify-center text-center transition-all ${
-                        isEmptyDay ? "cursor-default" : "cursor-pointer hover:shadow-md"
+                      className={`aspect-square rounded border flex flex-col items-center justify-center text-center transition-all text-[11px] ${
+                        isEmptyDay ? "cursor-default" : "cursor-pointer hover:shadow-sm"
                       } ${bgColor} ${
-                        selectedDate === day.date && day.date ? "ring-2 ring-primary ring-offset-1" : ""
+                        selectedDate === day.date && day.date ? "ring-1 ring-primary" : ""
                       }`}
                     >
                       {isCurrentMonth && (
                         <>
-                          <div className="text-sm font-bold">{day.dayNum}</div>
+                          <div className="font-bold leading-none">{day.dayNum}</div>
                           {day.trades > 0 ? (
                             <>
                               <div
-                                className={`text-xs font-mono font-bold ${
+                                className={`font-mono font-bold leading-none mt-0.5 ${
                                   day.pnl > 0 ? "text-profit" : "text-destructive"
                                 }`}
                               >
                                 ${Math.abs(day.pnl / 100).toFixed(1)}k
                               </div>
-                              <div className="text-xs text-muted-foreground">{day.trades}T</div>
+                              <div className="text-muted-foreground leading-none">{day.trades}T</div>
                             </>
                           ) : (
-                            <div className="text-xs text-muted-foreground/50">—</div>
+                            <div className="text-muted-foreground/40 leading-none">—</div>
                           )}
                         </>
                       )}
@@ -268,18 +268,18 @@ export default function PNLCalendarDashboard() {
               </div>
 
               {selectedDate && (
-                <div className="p-4 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
-                  <h4 className="font-semibold mb-3 text-sm">
-                    Trades on {new Date(selectedDate).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                <div className="p-3 rounded bg-sidebar-accent/20 border border-sidebar-border">
+                  <h4 className="font-semibold text-xs mb-2 uppercase tracking-wide text-muted-foreground">
+                    {new Date(selectedDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                   </h4>
-                  <div className="space-y-2 max-h-[180px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
                     {filteredTrades
                       .filter((t) => t.date === selectedDate)
                       .map((trade) => (
-                        <div key={trade.id} className="flex justify-between items-center text-sm p-2 rounded bg-sidebar-accent/50">
-                          <div>
+                        <div key={trade.id} className="flex justify-between items-center text-xs p-1.5 rounded bg-sidebar-accent/40">
+                          <div className="flex items-center gap-1.5">
                             <span className="font-mono font-semibold">{trade.pair}</span>
-                            <span className="text-xs text-muted-foreground ml-2">{trade.direction}</span>
+                            <span className="text-muted-foreground">{trade.direction === "Long" ? "↑" : "↓"}</span>
                           </div>
                           <span className={`font-mono font-bold ${trade.pnl > 0 ? "text-profit" : "text-destructive"}`}>
                             {trade.pnl > 0 ? "+" : ""}${trade.pnl}
