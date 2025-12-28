@@ -9,13 +9,18 @@ export interface Trade {
   slPercent: number;
   tpPercent: number;
   rrr: string;
-  exitPrice: number;
-  exitType: "SL Hit" | "TP Hit" | "Breakeven";
-  pnl: number;
-  status: "Win" | "Loss" | "BE";
+  exitPrice?: number;
+  exitType?: "SL Hit" | "TP Hit" | "Breakeven";
+  pnl?: number;
+  status: "Win" | "Loss" | "BE" | "Draft";
   strategy: string;
   notes?: string;
   type: "journal" | "backtest";
+  conviction?: number;
+  marketRegime?: "Clear Uptrend" | "Clear Downtrend" | "Sideways" | "Volatile";
+  setup?: string;
+  psychologyTags?: string[];
+  executionMistakes?: string[];
 }
 
 export interface Strategy {
@@ -434,6 +439,27 @@ export const mockTrades: Trade[] = [
     status: "Win",
     strategy: "Gap Fill",
     type: "journal",
+  },
+  {
+    id: "draft-1",
+    date: "2025-12-28",
+    pair: "SPY",
+    direction: "Long",
+    entryPrice: 600,
+    slPrice: 595,
+    tpPrice: 610,
+    slPercent: 0.83,
+    tpPercent: 1.67,
+    rrr: "1:2.0",
+    status: "Draft",
+    strategy: "Breakout",
+    type: "journal",
+    conviction: 4,
+    marketRegime: "Clear Uptrend",
+    setup: "Broke above resistance at 599.50 with strong volume confirmation",
+    psychologyTags: ["Discipline", "Patience"],
+    executionMistakes: [],
+    notes: "Clean breakout setup, entering on pullback to the break level",
   },
 ];
 

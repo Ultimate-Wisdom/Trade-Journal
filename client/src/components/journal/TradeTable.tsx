@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Trade } from "@/lib/mockData";
-import { Trash2 } from "lucide-react";
+import { Trash2, Edit2 } from "lucide-react";
+import { Link } from "wouter";
 
 interface TradeTableProps {
   trades: Trade[];
@@ -27,12 +28,11 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
             <TableHead>Pair</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Strategy</TableHead>
-            <TableHead className="text-right">Size</TableHead>
             <TableHead className="text-right">Entry</TableHead>
             <TableHead className="text-right">Exit</TableHead>
             <TableHead className="text-right">P&L</TableHead>
             <TableHead className="text-right">Status</TableHead>
-            {onDelete && <TableHead className="w-10"></TableHead>}
+            <TableHead className="w-16"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -49,37 +49,50 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                 </Badge>
               </TableCell>
               <TableCell>{trade.strategy}</TableCell>
-              <TableCell className="text-right font-mono text-muted-foreground">{trade.size}</TableCell>
-              <TableCell className="text-right font-mono">{trade.entry}</TableCell>
-              <TableCell className="text-right font-mono">{trade.exit}</TableCell>
+              <TableCell className="text-right font-mono">{trade.entryPrice}</TableCell>
+              <TableCell className="text-right font-mono">{trade.exitPrice || "—"}</TableCell>
               <TableCell className={cn(
                 "text-right font-mono font-bold",
-                trade.pnl > 0 ? "text-profit" : "text-loss"
+                trade.pnl !== undefined && trade.pnl > 0 ? "text-profit" : trade.pnl !== undefined && trade.pnl < 0 ? "text-loss" : "text-muted-foreground"
               )}>
-                {trade.pnl > 0 ? "+" : ""}{trade.pnl}
+                {trade.pnl !== undefined ? (trade.pnl > 0 ? "+" : "") + trade.pnl : "—"}
               </TableCell>
               <TableCell className="text-right">
                 <Badge className={cn(
-                  "w-16 justify-center",
+                  "w-16 justify-center text-xs",
                   trade.status === "Win" ? "bg-profit/20 text-profit hover:bg-profit/30" : 
-                  trade.status === "Loss" ? "bg-loss/20 text-loss hover:bg-loss/30" : 
+                  trade.status === "Loss" ? "bg-loss/20 text-loss hover:bg-loss/30" :
+                  trade.status === "Draft" ? "bg-blue-500/20 text-blue-500 hover:bg-blue-500/30" :
                   "bg-muted text-muted-foreground"
                 )}>
                   {trade.status}
                 </Badge>
               </TableCell>
-              {onDelete && (
-                <TableCell className="text-right">
+              <TableCell className="text-right space-x-1 flex justify-end">
+                {trade.status === "Draft" && (
+                  <Link href={`/new-entry/${trade.id}`}>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="text-primary hover:text-primary hover:bg-primary/10 h-8 w-8 p-0"
+                      data-testid={`button-edit-draft-${trade.id}`}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                )}
+                {onDelete && (
                   <Button 
                     variant="ghost" 
                     size="sm"
                     onClick={() => onDelete(trade.id)}
                     className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                    data-testid={`button-delete-${trade.id}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                </TableCell>
-              )}
+                )}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

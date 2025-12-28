@@ -20,6 +20,7 @@ function Router() {
       <Route path="/backtest" component={Backtest} />
       <Route path="/calendar" component={PNLCalendarDashboard} />
       <Route path="/new-entry" component={NewEntry} />
+      <Route path="/new-entry/:id" component={NewEntry} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/accounts" component={TradingAccounts} />
       <Route path="/analytics" component={Dashboard} /> 
