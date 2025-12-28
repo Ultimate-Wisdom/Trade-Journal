@@ -58,15 +58,6 @@ export function MobileNav() {
                   );
                 })}
               </nav>
-              <div className="border-t p-4">
-                <div className="flex items-center gap-3 rounded-md bg-sidebar-accent/50 p-3">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary to-purple-500" />
-                  <div className="overflow-hidden">
-                    <p className="truncate text-sm font-medium">Trader One</p>
-                    <p className="truncate text-xs text-muted-foreground">Pro</p>
-                  </div>
-                </div>
-              </div>
             </div>
           </SheetContent>
         </Sheet>
