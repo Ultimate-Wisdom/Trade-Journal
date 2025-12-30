@@ -4,6 +4,10 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["psmisc"]
+
+[[ports]]
+localPort = 4983
 
 [[ports]]
 localPort = 5000
@@ -20,6 +24,9 @@ externalPort = 3000
 [[ports]]
 localPort = 5003
 externalPort = 3002
+
+[[ports]]
+localPort = 8080
 
 [env]
 PORT = "5000"
