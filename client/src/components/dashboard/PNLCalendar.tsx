@@ -30,7 +30,7 @@ export function PNLCalendar({ trades }: PNLCalendarProps) {
       wins: 0,
     };
 
-    existing.pnl += trade.pnl;
+    existing.pnl += trade.pnl || 0;
     existing.trades += 1;
     if (trade.status === "Win") {
       existing.wins += 1;

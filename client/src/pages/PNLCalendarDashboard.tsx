@@ -62,7 +62,7 @@ export default function PNLCalendarDashboard() {
           wins: 0,
           losses: 0,
         };
-        existing.pnl += trade.pnl;
+        existing.pnl += trade.pnl || 0;
         existing.trades += 1;
         if (trade.status === "Win") {
           existing.wins += 1;
@@ -120,7 +120,7 @@ export default function PNLCalendarDashboard() {
 
   const monthlyStats = useMemo(() => {
     return {
-      totalPNL: filteredTrades.reduce((sum, t) => sum + t.pnl, 0),
+      totalPNL: filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
       totalTrades: filteredTrades.length,
       totalWins: filteredTrades.filter((t) => t.status === "Win").length,
       totalLosses: filteredTrades.filter((t) => t.status === "Loss").length,
@@ -141,7 +141,7 @@ export default function PNLCalendarDashboard() {
     date.setMonth(date.getMonth() - 1);
     setFilters({
       ...filters,
-      month: date.toISOString().substring(0, 7),
+      month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
     });
   };
 
@@ -150,7 +150,7 @@ export default function PNLCalendarDashboard() {
     date.setMonth(date.getMonth() + 1);
     setFilters({
       ...filters,
-      month: date.toISOString().substring(0, 7),
+      month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
     });
   };
 
@@ -255,7 +255,7 @@ export default function PNLCalendarDashboard() {
                               >
                                 ${Math.abs(day.pnl / 100).toFixed(1)}k
                               </div>
-                              <div className="text-muted-foreground leading-none">{day.trades}T</div>
+                              <div className="text-muted-foreground leading-none">{day.wins}W{day.losses}L</div>
                             </>
                           ) : (
                             <div className="text-muted-foreground/40 leading-none">—</div>
@@ -281,8 +281,8 @@ export default function PNLCalendarDashboard() {
                             <span className="font-mono font-semibold">{trade.pair}</span>
                             <span className="text-muted-foreground">{trade.direction === "Long" ? "↑" : "↓"}</span>
                           </div>
-                          <span className={`font-mono font-bold ${trade.pnl > 0 ? "text-profit" : "text-destructive"}`}>
-                            {trade.pnl > 0 ? "+" : ""}${trade.pnl}
+                          <span className={`font-mono font-bold ${(trade.pnl || 0) > 0 ? "text-profit" : "text-destructive"}`}>
+                            {(trade.pnl || 0) > 0 ? "+" : ""}${trade.pnl || 0}
                           </span>
                         </div>
                       ))}
