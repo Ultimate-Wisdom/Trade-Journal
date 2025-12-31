@@ -170,17 +170,17 @@ export default function Dashboard() {
               </div>
               <EquityChart />
             </div>
-            <div className="col-span-2 md:col-span-3 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative min-h-[200px] md:min-h-auto">
+            <div className="col-span-2 md:col-span-3 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative min-h-[160px]">
               <img
                 src={generatedImage}
                 alt="Abstract visualization"
-                className="absolute inset-0 h-full w-full object-cover opacity-30 mix-blend-overlay"
+                className="absolute inset-0 h-full w-full object-cover opacity-20 mix-blend-overlay"
               />
-              <div className="relative z-10 p-4 md:p-6 flex flex-col justify-end h-full bg-gradient-to-t from-background to-transparent">
+              <div className="relative z-10 p-4 md:p-6 flex flex-col justify-end h-full">
                 <h3 className="text-base md:text-lg font-bold">
                   Weekly Insight
                 </h3>
-                <p className="text-xs md:text-sm text-muted-foreground mt-2">
+                <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-prose">
                   Your strategy "Breakout" is outperforming all others this week
                   with a 75% win rate. Consider scaling up.
                 </p>
@@ -202,7 +202,7 @@ export default function Dashboard() {
               Recent Trades
             </h3>
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-              <TradeTable trades={journalTrades} />
+              <TradeTable trades={journalTrades.slice(0, 5)} showAccount={true} showRRR={true} showRisk={true} />
             </div>
           </div>
         </div>

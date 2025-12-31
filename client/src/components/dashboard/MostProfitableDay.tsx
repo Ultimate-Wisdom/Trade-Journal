@@ -28,7 +28,7 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
     if (trade.status === "Win") {
       existing.wins += 1;
     }
-    existing.pnl += trade.pnl;
+    existing.pnl += trade.pnl || 0;
 
     dayStatsMap.set(dayNum, existing);
   });

@@ -16,18 +16,24 @@ import { Link } from "wouter";
 interface TradeTableProps {
   trades: Trade[];
   onDelete?: (id: string) => void;
+  showAccount?: boolean;
+  showRRR?: boolean;
+  showRisk?: boolean;
 }
 
-export function TradeTable({ trades, onDelete }: TradeTableProps) {
+export function TradeTable({ trades, onDelete, showAccount, showRRR, showRisk }: TradeTableProps) {
   return (
     <div className="rounded-md border bg-card/50 backdrop-blur-sm">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-[100px]">Date</TableHead>
+            {showAccount && <TableHead>Account</TableHead>}
             <TableHead>Pair</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Strategy</TableHead>
+            {showRRR && <TableHead className="text-right">RRR</TableHead>}
+            {showRisk && <TableHead className="text-right">Risk %</TableHead>}
             <TableHead className="text-right">Entry</TableHead>
             <TableHead className="text-right">Exit</TableHead>
             <TableHead className="text-right">P&L</TableHead>
@@ -39,6 +45,7 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
           {trades.map((trade) => (
             <TableRow key={trade.id} className="group cursor-pointer hover:bg-muted/50">
               <TableCell className="font-medium text-muted-foreground">{trade.date}</TableCell>
+              {showAccount && <TableCell className="text-xs font-mono opacity-70">{"FTMO 100k"}</TableCell>}
               <TableCell className="font-bold font-mono">{trade.pair}</TableCell>
               <TableCell>
                 <Badge variant="outline" className={cn(
@@ -49,6 +56,8 @@ export function TradeTable({ trades, onDelete }: TradeTableProps) {
                 </Badge>
               </TableCell>
               <TableCell>{trade.strategy}</TableCell>
+              {showRRR && <TableCell className="text-right font-mono">1:2.5</TableCell>}
+              {showRisk && <TableCell className="text-right font-mono text-xs text-muted-foreground">0.5%</TableCell>}
               <TableCell className="text-right font-mono">{trade.entryPrice}</TableCell>
               <TableCell className="text-right font-mono">{trade.exitPrice || "—"}</TableCell>
               <TableCell className={cn(

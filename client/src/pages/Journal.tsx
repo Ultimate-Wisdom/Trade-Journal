@@ -54,7 +54,12 @@ export default function Journal() {
           </div>
 
           <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-            <TradeTable trades={mockTrades.filter((t) => t.type === "journal")} />
+            <TradeTable 
+              trades={mockTrades.filter((t) => t.type === "journal")} 
+              showAccount={true} 
+              showRRR={true} 
+              showRisk={true} 
+            />
           </div>
           
           <div className="mt-6 flex justify-center">
