@@ -60,32 +60,15 @@ export const trades = pgTable("trades", {
   rrr: numeric("rrr", { precision: 10, scale: 2 }),
   riskPercent: numeric("risk_percent", { precision: 10, scale: 2 }),
   notes: text("notes"),
+  status: varchar("status", { length: 20 }).default("Open"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==========================================
-// 4. ASSETS
-// ==========================================
-export const assets = pgTable("assets", {
-  id: varchar("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: varchar("user_id")
-    .references(() => users.id)
-    .notNull(),
-  accountId: varchar("account_id").references(() => accounts.id),
-  symbolId: text("symbol_id").notNull(),
-  ticker: varchar("ticker", { length: 10 }).notNull(),
-  quantity: numeric("quantity", { precision: 20, scale: 8 }).notNull(),
-  lastUpdated: timestamp("last_updated").defaultNow(),
-});
-
-// ==========================================
-// 5. RELATIONSHIPS
+// 4. RELATIONSHIPS
 // ==========================================
 export const accountRelations = relations(accounts, ({ many }) => ({
   trades: many(trades),
-  assets: many(assets),
 }));
 
 export const tradeRelations = relations(trades, ({ one }) => ({
@@ -95,15 +78,8 @@ export const tradeRelations = relations(trades, ({ one }) => ({
   }),
 }));
 
-export const assetRelations = relations(assets, ({ one }) => ({
-  account: one(accounts, {
-    fields: [assets.accountId],
-    references: [accounts.id],
-  }),
-}));
-
 // ==========================================
-// 6. SCHEMAS & TYPES
+// 5. SCHEMAS & TYPES
 // ==========================================
 export const insertAccountSchema = createInsertSchema(accounts).omit({
   id: true,
@@ -113,13 +89,13 @@ export const insertTradeSchema = createInsertSchema(trades).omit({
   id: true,
   createdAt: true,
 });
-export const insertAssetSchema = createInsertSchema(assets).omit({
-  id: true,
-  lastUpdated: true,
-});
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
 export type InsertAccount = typeof accounts.$inferInsert;
+
+// === THE MISSING LINES CAUSING YOUR ERROR ===
+export type Trade = typeof trades.$inferSelect;
+export type InsertTrade = typeof trades.$inferInsert;

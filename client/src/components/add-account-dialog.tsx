@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertAccountSchema } from "@shared/schema";
+import * as z from "zod"; // Import generic Zod
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -31,49 +31,66 @@ import {
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
+// 1. FIX: Create a simple, explicit schema for the form
+// This avoids strict type conflicts with the Database schema
+const formSchema = z.object({
+  name: z.string().min(1, "Account name is required"),
+  type: z.enum(["Prop", "Live", "Demo"]),
+  initialBalance: z.string().min(1, "Initial balance is required"),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
 export function AddAccountDialog() {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // === THE FIX IS HERE ===
-  // We use .omit({ userId: true }) so the form doesn't block you
-  // for not having a User ID yet.
-  const form = useForm({
-    resolver: zodResolver(insertAccountSchema.omit({ userId: true })),
+  // 2. Use the simple schema
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      type: "Prop", // Default to Prop Firm
-      initialBalance: "100000", // Default to 100k
+      type: "Prop",
+      initialBalance: "100000",
     },
   });
 
   const mutation = useMutation({
-    mutationFn: async (values: any) => {
-      // Convert balance to string to satisfy the schema requirements
+    mutationFn: async (values: FormValues) => {
+      // 3. Debug Log: See exactly what we are sending
+      console.log("Sending Payload:", values);
+
       const payload = {
-        ...values,
-        initialBalance: values.initialBalance.toString(),
+        name: values.name,
+        type: values.type,
+        initialBalance: values.initialBalance, // Already a string, safe to send
       };
+
       return apiRequest("POST", "/api/accounts", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
       toast({
         title: "Success",
-        description: "Account added to your portfolio",
+        description: "Account added successfully",
       });
       setOpen(false);
       form.reset();
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Mutation Failed:", error);
       toast({
         title: "Error",
-        description: "Failed to create account",
+        description: error.message || "Failed to create account",
         variant: "destructive",
       });
     },
   });
+
+  const onSubmit = (data: FormValues) => {
+    mutation.mutate(data);
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -89,10 +106,7 @@ export function AddAccountDialog() {
         </DialogHeader>
 
         <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit((data) => mutation.mutate(data))}
-            className="space-y-4"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="name"

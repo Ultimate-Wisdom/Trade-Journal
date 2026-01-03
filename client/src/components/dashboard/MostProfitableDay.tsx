@@ -17,9 +17,15 @@ interface DayStats {
 
 export function MostProfitableDay({ trades }: MostProfitableDayProps) {
   const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const dayStatsMap = new Map<number, { trades: number; wins: number; pnl: number }>();
+  const dayStatsMap = new Map<
+    number,
+    { trades: number; wins: number; pnl: number }
+  >();
 
   trades.forEach((trade) => {
+    // Safety check for valid dates
+    if (!trade.date) return;
+
     const date = new Date(trade.date);
     const dayNum = date.getDay();
 
@@ -28,7 +34,8 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
     if (trade.status === "Win") {
       existing.wins += 1;
     }
-    existing.pnl += trade.pnl || 0;
+    // Handle potential string/number mismatch from DB later
+    existing.pnl += Number(trade.pnl) || 0;
 
     dayStatsMap.set(dayNum, existing);
   });
@@ -41,6 +48,7 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
       trades: stats.trades,
       wins: stats.wins,
       pnl: stats.pnl,
+      // Fix: Prevent division by zero
       winrate: stats.trades > 0 ? (stats.wins / stats.trades) * 100 : 0,
     };
   });
@@ -48,6 +56,7 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
   const mostProfitable = dayStats
     .filter((d) => d.trades > 0)
     .sort((a, b) => {
+      // Sort by PnL first, then by Winrate
       if (b.pnl !== a.pnl) return b.pnl - a.pnl;
       return b.winrate - a.winrate;
     })[0];
@@ -62,7 +71,9 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-muted-foreground text-center py-6">No trading data yet</p>
+          <p className="text-xs text-muted-foreground text-center py-6">
+            No trading data yet
+          </p>
         </CardContent>
       </Card>
     );
@@ -79,28 +90,41 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
       <CardContent>
         <div className="space-y-4">
           <div className="p-4 rounded-lg bg-profit/10 border border-profit/30">
-            <p className="text-4xl font-bold text-profit">{mostProfitable.day}</p>
+            <p className="text-4xl font-bold text-profit">
+              {mostProfitable.day}
+            </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {mostProfitable.winrate.toFixed(0)}% win rate • {mostProfitable.trades} trades
+              {mostProfitable.winrate.toFixed(0)}% win rate •{" "}
+              {mostProfitable.trades} trades
             </p>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-xs text-muted-foreground">P&L:</span>
-              <span className="text-lg font-bold font-mono text-profit">
-                +${mostProfitable.pnl.toLocaleString()}
+              <span
+                className={`text-lg font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
+              >
+                {/* Fix: Only show + if positive, otherwise allow minus sign to show naturally */}
+                {mostProfitable.pnl > 0 ? "+" : ""}
+                {mostProfitable.pnl.toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Avg per trade:</span>
-              <span className="text-sm font-bold font-mono text-profit">
-                ${(mostProfitable.pnl / mostProfitable.trades).toFixed(0)}
+              <span className="text-xs text-muted-foreground">
+                Avg per trade:
+              </span>
+              <span
+                className={`text-sm font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
+              >
+                ${(mostProfitable.pnl / mostProfitable.trades).toFixed(2)}
               </span>
             </div>
           </div>
 
           <div className="mt-4 pt-4 border-t border-sidebar-border">
-            <p className="text-xs font-semibold text-muted-foreground mb-3">Week Overview</p>
+            <p className="text-xs font-semibold text-muted-foreground mb-3">
+              Week Overview
+            </p>
             <div className="grid grid-cols-7 gap-1">
               {dayStats.map((day) => (
                 <div
@@ -116,7 +140,9 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
                   }`}
                 >
                   <p className="text-xs font-bold">{day.day}</p>
-                  {day.trades > 0 && <p className="text-xs mt-1">{day.winrate.toFixed(0)}%</p>}
+                  {day.trades > 0 && (
+                    <p className="text-xs mt-1">{day.winrate.toFixed(0)}%</p>
+                  )}
                 </div>
               ))}
             </div>
