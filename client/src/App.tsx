@@ -1,6 +1,6 @@
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -11,8 +11,36 @@ import Portfolio from "@/pages/Portfolio";
 import TradingAccounts from "@/pages/TradingAccounts";
 import Backtest from "@/pages/Backtest";
 import PNLCalendarDashboard from "@/pages/PNLCalendarDashboard";
+import AuthPage from "@/pages/AuthPage";
+import { Loader2 } from "lucide-react";
 
 function Router() {
+  // 1. Ask the backend: "Who is logged in?"
+  const {
+    data: user,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["/api/user"],
+    retry: false, // If 401 (Unauthorized), stop asking and show login
+    staleTime: 5 * 60 * 1000, // Cache user data for 5 minutes
+  });
+
+  // 2. Show a loading spinner while checking
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // 3. If NO user is found (or error like 401), show the Login Gate
+  if (!user || error) {
+    return <AuthPage />;
+  }
+
+  // 4. If user IS found, show the Full App
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
@@ -23,8 +51,7 @@ function Router() {
       <Route path="/new-entry/:id" component={NewEntry} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/accounts" component={TradingAccounts} />
-      <Route path="/analytics" component={Dashboard} /> 
-      {/* Analytics redirects to dashboard for now */}
+      <Route path="/analytics" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -34,8 +61,8 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
         <Router />
+        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   );

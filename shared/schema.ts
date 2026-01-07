@@ -39,7 +39,7 @@ export const accounts = pgTable("accounts", {
 });
 
 // ==========================================
-// 3. TRADES
+// 3. TRADES (UPDATED FOR YOUR JOURNAL)
 // ==========================================
 export const trades = pgTable("trades", {
   id: varchar("id")
@@ -59,6 +59,14 @@ export const trades = pgTable("trades", {
   pnl: numeric("pnl", { precision: 20, scale: 2 }),
   rrr: numeric("rrr", { precision: 10, scale: 2 }),
   riskPercent: numeric("risk_percent", { precision: 10, scale: 2 }),
+
+  // === JOURNAL ANALYSIS FIELDS ===
+  strategy: text("strategy"),
+  setup: text("setup"),
+  marketRegime: text("market_regime"),
+  conviction: numeric("conviction", { precision: 3, scale: 1 }),
+  // ================================
+
   notes: text("notes"),
   status: varchar("status", { length: 20 }).default("Open"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -95,7 +103,5 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
 export type InsertAccount = typeof accounts.$inferInsert;
-
-// === THE MISSING LINES CAUSING YOUR ERROR ===
 export type Trade = typeof trades.$inferSelect;
 export type InsertTrade = typeof trades.$inferInsert;
