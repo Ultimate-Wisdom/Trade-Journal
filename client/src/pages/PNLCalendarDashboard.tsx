@@ -3,8 +3,9 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { mockTrades } from "@/lib/mockData";
 import { Trade } from "@/lib/mockData";
+import { useQuery } from "@tanstack/react-query";
+import { Trade as DBTrade } from "@shared/schema";
 import { ChevronLeft, ChevronRight, Filter } from "lucide-react";
 
 interface DayData {
@@ -23,7 +24,31 @@ interface FilterState {
 }
 
 export default function PNLCalendarDashboard() {
-  const journalTrades = mockTrades.filter((t) => t.type === "journal");
+  // Fetch real trades from API
+  const { data: dbTrades } = useQuery<DBTrade[]>({
+    queryKey: ["/api/trades"],
+  });
+
+  // Transform database trades to Trade format for calendar
+  const journalTrades = useMemo<Trade[]>(() => {
+    if (!dbTrades) return [];
+    return dbTrades.map((t) => ({
+      id: String(t.id),
+      pair: t.symbol || "UNKNOWN",
+      type: "Forex" as const, // Default type, adjust as needed
+      direction: t.direction as "Long" | "Short",
+      entryPrice: Number(t.entryPrice) || 0,
+      exitPrice: t.exitPrice ? Number(t.exitPrice) : undefined,
+      slPrice: t.stopLoss ? Number(t.stopLoss) : undefined,
+      tpPrice: t.takeProfit ? Number(t.takeProfit) : undefined,
+      quantity: Number(t.quantity) || 0,
+      pnl: t.pnl ? Number(t.pnl) : undefined,
+      status: t.status as "Open" | "Closed" | "Pending",
+      date: t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      strategy: t.strategy || "Unknown",
+    }));
+  }, [dbTrades]);
+
   const [filters, setFilters] = useState<FilterState>({ symbol: "", side: "all", month: "2025-12" });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -64,9 +89,9 @@ export default function PNLCalendarDashboard() {
         };
         existing.pnl += trade.pnl || 0;
         existing.trades += 1;
-        if (trade.status === "Win") {
+        if (trade.status === "Closed" && (trade.pnl || 0) > 0) {
           existing.wins += 1;
-        } else if (trade.status === "Loss") {
+        } else if (trade.status === "Closed" && (trade.pnl || 0) < 0) {
           existing.losses += 1;
         }
         dayMap.set(dayNum, existing);
@@ -122,8 +147,8 @@ export default function PNLCalendarDashboard() {
     return {
       totalPNL: filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
       totalTrades: filteredTrades.length,
-      totalWins: filteredTrades.filter((t) => t.status === "Win").length,
-      totalLosses: filteredTrades.filter((t) => t.status === "Loss").length,
+      totalWins: filteredTrades.filter((t) => t.status === "Closed" && (t.pnl || 0) > 0).length,
+      totalLosses: filteredTrades.filter((t) => t.status === "Closed" && (t.pnl || 0) < 0).length,
     };
   }, [filteredTrades]);
 

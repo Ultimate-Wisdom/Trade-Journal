@@ -31,7 +31,8 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
 
     const existing = dayStatsMap.get(dayNum) || { trades: 0, wins: 0, pnl: 0 };
     existing.trades += 1;
-    if (trade.status === "Win") {
+    // A win is a closed trade with positive PnL
+    if (trade.status === "Closed" && trade.pnl && trade.pnl > 0) {
       existing.wins += 1;
     }
     // Handle potential string/number mismatch from DB later

@@ -3,24 +3,54 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StatsCard } from "@/components/dashboard/StatsCard";
-import { mockAccounts } from "@/lib/mockAccounts";
-import { TrendingUp, AlertCircle, Target } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Account } from "@shared/schema";
+import { AddAccountDialog } from "@/components/add-account-dialog";
+import { TrendingUp, AlertCircle, Target, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const propFirms = mockAccounts.filter((acc) => acc.type === "prop");
-const personalAccounts = mockAccounts.filter((acc) => acc.type === "personal");
+import { useMemo } from "react";
 
 export default function TradingAccounts() {
+  // Fetch real accounts from API
+  const { data: accounts, isLoading } = useQuery<Account[]>({
+    queryKey: ["/api/accounts"],
+  });
+
+  // Filter accounts by type
+  const propFirms = useMemo(() => {
+    return accounts?.filter((acc) => acc.type === "Prop") || [];
+  }, [accounts]);
+
+  const personalAccounts = useMemo(() => {
+    return accounts?.filter((acc) => acc.type === "Live" || acc.type === "Demo") || [];
+  }, [accounts]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-background text-foreground font-sans">
+        <MobileNav />
+        <main className="flex-1 overflow-y-auto pt-20">
+          <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
+            <div className="flex items-center justify-center min-h-[400px]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
-          <header className="mb-6 md:mb-8 flex flex-col gap-2">
+          <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Trading Accounts</h1>
               <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your prop firm and personal accounts.</p>
             </div>
+            <AddAccountDialog />
           </header>
 
           <Tabs defaultValue="prop" className="w-full">
@@ -38,7 +68,7 @@ export default function TradingAccounts() {
                         <div className="flex items-center justify-between">
                           <div>
                             <CardTitle className="text-base md:text-lg">{account.name}</CardTitle>
-                            <p className="text-xs md:text-sm text-muted-foreground mt-1">{account.firm}</p>
+                            <p className="text-xs md:text-sm text-muted-foreground mt-1">{account.type}</p>
                           </div>
                           <Badge className="bg-primary/20 text-primary hover:bg-primary/30">
                             Active
@@ -48,30 +78,21 @@ export default function TradingAccounts() {
                       <CardContent>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="p-4 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
-                            <p className="text-xs text-muted-foreground mb-1">Account Balance</p>
-                            <p className="text-lg md:text-2xl font-mono font-bold">${account.balance.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground mb-1">Initial Balance</p>
+                            <p className="text-lg md:text-2xl font-mono font-bold">
+                              ${Number(account.initialBalance || 0).toLocaleString()}
+                            </p>
                           </div>
-                          <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+                          <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
                             <div className="flex items-center gap-1 mb-1">
-                              <AlertCircle className="h-4 w-4 text-destructive" />
-                              <p className="text-xs text-muted-foreground">Max Daily Loss</p>
+                              <TrendingUp className="h-4 w-4 text-primary" />
+                              <p className="text-xs text-muted-foreground">Account Type</p>
                             </div>
-                            <p className="text-lg md:text-2xl font-mono font-bold text-destructive">-${account.maxDailyLoss?.toLocaleString()}</p>
+                            <p className="text-lg font-semibold text-primary">{account.type}</p>
                           </div>
-                          <div className="p-4 rounded-lg bg-profit/10 border border-profit/30">
-                            <div className="flex items-center gap-1 mb-1">
-                              <Target className="h-4 w-4 text-profit" />
-                              <p className="text-xs text-muted-foreground">Profit Target</p>
-                            </div>
-                            <p className="text-lg md:text-2xl font-mono font-bold text-profit">${account.profitTarget?.toLocaleString()}</p>
-                          </div>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-sidebar-border">
-                          <div className="text-xs text-muted-foreground">
-                            Remaining to Target: <span className="font-bold text-profit">${((account.profitTarget || 0) - account.balance).toLocaleString()}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-2">
-                            Progress: <span className="font-bold">{(((account.balance - (account.profitTarget || 0) * 0.5) / ((account.profitTarget || 0) * 0.5)) * 100).toFixed(1)}%</span>
+                          <div className="p-4 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
+                            <p className="text-xs text-muted-foreground mb-1">Account Status</p>
+                            <p className="text-lg font-semibold">Active</p>
                           </div>
                         </div>
                       </CardContent>
@@ -96,16 +117,18 @@ export default function TradingAccounts() {
                         <div className="flex items-center justify-between">
                           <div>
                             <CardTitle className="text-base md:text-lg">{account.name}</CardTitle>
-                            <p className="text-xs md:text-sm text-muted-foreground mt-1">Broker: {account.broker}</p>
+                            <p className="text-xs md:text-sm text-muted-foreground mt-1">{account.type} Account</p>
                           </div>
-                          <Badge variant="outline">Personal</Badge>
+                          <Badge variant="outline">{account.type}</Badge>
                         </div>
                       </CardHeader>
                       <CardContent>
                         <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                           <div className="p-4 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
-                            <p className="text-xs text-muted-foreground mb-2">Balance</p>
-                            <p className="text-2xl md:text-3xl font-mono font-bold">${account.balance.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground mb-2">Initial Balance</p>
+                            <p className="text-2xl md:text-3xl font-mono font-bold">
+                              ${Number(account.initialBalance || 0).toLocaleString()}
+                            </p>
                           </div>
                           <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
                             <div className="flex items-center gap-1 mb-1">

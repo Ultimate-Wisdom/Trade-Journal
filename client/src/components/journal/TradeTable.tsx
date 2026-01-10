@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Trade } from "@/lib/mockData";
+import { Trade } from "@shared/schema";
 import { Trash2, Edit2 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -21,7 +21,7 @@ interface TradeTableProps {
   showRisk?: boolean;
 }
 
-// 1. REAL MATH: Helper to calculate Reward-to-Risk Ratio
+// Helper to calculate Reward-to-Risk Ratio
 const calculateRRR = (entry: number, sl?: number, tp?: number) => {
   if (!sl || !tp || entry === sl) return "—";
 
@@ -31,7 +31,17 @@ const calculateRRR = (entry: number, sl?: number, tp?: number) => {
   if (risk === 0) return "—";
 
   const ratio = reward / risk;
-  return `1:${ratio.toFixed(1)}`; // Returns "1:2.5", "1:3.0", etc.
+  return `1:${ratio.toFixed(1)}`;
+};
+
+// Helper to format date
+const formatDate = (date: Date | null | undefined) => {
+  if (!date) return "—";
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
 };
 
 export function TradeTable({
@@ -48,7 +58,7 @@ export function TradeTable({
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-[100px]">Date</TableHead>
             {showAccount && <TableHead>Account</TableHead>}
-            <TableHead>Pair</TableHead>
+            <TableHead>Symbol</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Strategy</TableHead>
             {showRRR && <TableHead className="text-right">RRR</TableHead>}
@@ -61,128 +71,145 @@ export function TradeTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {trades.map((trade) => {
-            // Convert strings to numbers for math
-            const entry = Number(trade.entryPrice);
-            const sl = trade.stopLoss ? Number(trade.stopLoss) : undefined;
-            const tp = trade.takeProfit ? Number(trade.takeProfit) : undefined;
-
-            return (
-              <TableRow
-                key={trade.id}
-                className="group cursor-pointer hover:bg-muted/50"
+          {trades.length === 0 ? (
+            <TableRow>
+              <TableCell 
+                colSpan={10 + (showAccount ? 1 : 0) + (showRRR ? 1 : 0) + (showRisk ? 1 : 0)} 
+                className="text-center text-muted-foreground py-8"
               >
-                <TableCell className="font-medium text-muted-foreground">
-                  {trade.date}
-                </TableCell>
+                No trades yet. Create your first trade to get started.
+              </TableCell>
+            </TableRow>
+          ) : (
+            trades.map((trade) => {
+              // Convert strings to numbers for calculations
+              const entry = Number(trade.entryPrice);
+              const exit = trade.exitPrice ? Number(trade.exitPrice) : undefined;
+              const sl = trade.stopLoss ? Number(trade.stopLoss) : undefined;
+              const tp = trade.takeProfit ? Number(trade.takeProfit) : undefined;
+              const pnl = trade.pnl ? Number(trade.pnl) : undefined;
+              const riskPercent = trade.riskPercent ? Number(trade.riskPercent) : undefined;
 
-                {/* FIX: Don't hardcode "FTMO 100k". Use trade.accountName or fallback */}
-                {showAccount && (
-                  <TableCell className="text-xs font-mono opacity-70">
-                    {(trade as any).accountName || "—"}
+              // Determine status from trade data
+              const status = trade.status || "Open";
+
+              return (
+                <TableRow
+                  key={trade.id}
+                  className="group cursor-pointer hover:bg-muted/50"
+                >
+                  <TableCell className="font-medium text-muted-foreground">
+                    {formatDate(trade.createdAt)}
                   </TableCell>
-                )}
 
-                <TableCell className="font-bold font-mono">
-                  {trade.pair}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant="outline"
+                  {showAccount && (
+                    <TableCell className="text-xs font-mono opacity-70">
+                      {trade.accountId ? trade.accountId.slice(0, 8) : "—"}
+                    </TableCell>
+                  )}
+
+                  <TableCell className="font-bold font-mono">
+                    {trade.symbol}
+                  </TableCell>
+
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "font-mono text-xs",
+                        trade.direction === "Long"
+                          ? "text-primary border-primary/30 bg-primary/10"
+                          : "text-destructive border-destructive/30 bg-destructive/10",
+                      )}
+                    >
+                      {trade.direction}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell className="text-sm">
+                    {trade.strategy || "—"}
+                  </TableCell>
+
+                  {showRRR && (
+                    <TableCell className="text-right font-mono">
+                      {trade.rrr ? `1:${Number(trade.rrr).toFixed(1)}` : calculateRRR(entry, sl, tp)}
+                    </TableCell>
+                  )}
+
+                  {showRisk && (
+                    <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                      {riskPercent ? `${riskPercent.toFixed(1)}%` : "—"}
+                    </TableCell>
+                  )}
+
+                  <TableCell className="text-right font-mono">
+                    ${entry.toFixed(2)}
+                  </TableCell>
+
+                  <TableCell className="text-right font-mono">
+                    {exit ? `$${exit.toFixed(2)}` : "—"}
+                  </TableCell>
+
+                  <TableCell
                     className={cn(
-                      "font-mono text-xs",
-                      trade.direction === "Long"
-                        ? "text-primary border-primary/30 bg-primary/10"
-                        : "text-destructive border-destructive/30 bg-destructive/10",
+                      "text-right font-mono font-bold",
+                      pnl !== undefined && pnl > 0
+                        ? "text-profit"
+                        : pnl !== undefined && pnl < 0
+                          ? "text-loss"
+                          : "text-muted-foreground",
                     )}
                   >
-                    {trade.direction}
-                  </Badge>
-                </TableCell>
-                <TableCell>{trade.strategy}</TableCell>
-
-                {/* FIX: Use the calculator function instead of hardcoded string */}
-                {showRRR && (
-                  <TableCell className="text-right font-mono">
-                    {calculateRRR(entry, sl, tp)}
-                  </TableCell>
-                )}
-
-                {/* FIX: Use real risk data or fallback */}
-                {showRisk && (
-                  <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                    {(trade as any).riskPercent
-                      ? `${(trade as any).riskPercent}%`
+                    {pnl !== undefined
+                      ? `${pnl > 0 ? "+" : ""}$${pnl.toFixed(2)}`
                       : "—"}
                   </TableCell>
-                )}
 
-                <TableCell className="text-right font-mono">
-                  {trade.entryPrice}
-                </TableCell>
-                <TableCell className="text-right font-mono">
-                  {trade.exitPrice || "—"}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "text-right font-mono font-bold",
-                    trade.pnl !== undefined && trade.pnl > 0
-                      ? "text-profit"
-                      : trade.pnl !== undefined && trade.pnl < 0
-                        ? "text-loss"
-                        : "text-muted-foreground",
-                  )}
-                >
-                  {trade.pnl !== undefined
-                    ? (trade.pnl > 0 ? "+" : "") + trade.pnl
-                    : "—"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Badge
-                    className={cn(
-                      "w-16 justify-center text-xs",
-                      trade.status === "Win"
-                        ? "bg-profit/20 text-profit hover:bg-profit/30"
-                        : trade.status === "Loss"
-                          ? "bg-loss/20 text-loss hover:bg-loss/30"
-                          : trade.status === "Draft"
-                            ? "bg-blue-500/20 text-blue-500 hover:bg-blue-500/30"
-                            : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {trade.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right space-x-1 flex justify-end">
-                  {trade.status === "Draft" && (
+                  <TableCell className="text-right">
+                    <Badge
+                      className={cn(
+                        "w-16 justify-center text-xs",
+                        status === "Closed" && pnl && pnl > 0
+                          ? "bg-profit/20 text-profit hover:bg-profit/30"
+                          : status === "Closed" && pnl && pnl < 0
+                            ? "bg-loss/20 text-loss hover:bg-loss/30"
+                            : status === "Open"
+                              ? "bg-blue-500/20 text-blue-500 hover:bg-blue-500/30"
+                              : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {status}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell className="text-right space-x-1 flex justify-end">
                     <Link href={`/new-entry/${trade.id}`}>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="text-primary hover:text-primary hover:bg-primary/10 h-8 w-8 p-0"
-                        data-testid={`button-edit-draft-${trade.id}`}
+                        data-testid={`button-edit-${trade.id}`}
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
                     </Link>
-                  )}
-                  {onDelete && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(trade.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                      data-testid={`button-delete-${trade.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
+                    {onDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDelete(trade.id)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                        data-testid={`button-delete-${trade.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
         </TableBody>
       </Table>
     </div>
-  );
-}
+  );}

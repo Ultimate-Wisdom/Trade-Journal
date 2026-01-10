@@ -32,7 +32,8 @@ export function PNLCalendar({ trades }: PNLCalendarProps) {
 
     existing.pnl += trade.pnl || 0;
     existing.trades += 1;
-    if (trade.status === "Win") {
+    // A win is a closed trade with positive PnL
+    if (trade.status === "Closed" && trade.pnl && trade.pnl > 0) {
       existing.wins += 1;
     }
 

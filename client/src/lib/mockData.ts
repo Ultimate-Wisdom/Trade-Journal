@@ -34,6 +34,14 @@ export interface Backtest {
   notes: string;
 }
 
+export interface RemovedStrategy {
+  name: string;
+  removedDate: string;
+  removalReason: string;
+  winrate: number;
+  tradesCount: number;
+}
+
 export const mockStrategies = [
   "SMC (Smart Money Concepts)",
   "ICT (Inner Circle Trader)",
@@ -134,10 +142,11 @@ export const calculateStrategyWinrates = (trades: Trade[]) => {
   return Object.entries(strategyStats)
     .map(([name, stats]) => ({
       name,
-      winRate: stats.total > 0 ? (stats.wins / stats.total) * 100 : 0,
-      totalTrades: stats.total,
+      winrate: stats.total > 0 ? (stats.wins / stats.total) * 100 : 0,
+      wins: stats.wins,
+      total: stats.total,
     }))
-    .sort((a, b) => b.winRate - a.winRate);
+    .sort((a, b) => b.winrate - a.winrate);
 };
 
 export const calculateTopStrategyRRRCombos = (trades: Trade[]) => {
@@ -180,100 +189,21 @@ export const calculateTopStrategyRRRCombos = (trades: Trade[]) => {
   return Object.values(combos)
     .filter((c) => c.total >= 1)
     .map((c) => ({
+      name: c.strategy,
+      pair: c.rrr, // Using rrr as pair identifier for display
       strategy: c.strategy,
       rrr: c.rrr,
-      winRate: c.total > 0 ? (c.wins / c.total) * 100 : 0,
-      totalTrades: c.total,
+      winrate: c.total > 0 ? (c.wins / c.total) * 100 : 0,
+      wins: c.wins,
+      total: c.total,
     }))
-    .sort((a, b) => b.winRate - a.winRate)
+    .sort((a, b) => b.winrate - a.winrate)
     .slice(0, 5);
 };
 
 // === DATA EXPORTS ===
+// Note: Mock data has been cleared - all data now comes from the database via API
 
-export const mockTrades: Trade[] = [
-  {
-    id: "1",
-    pair: "EUR/USD",
-    type: "Forex",
-    direction: "Long",
-    entryPrice: 1.085,
-    exitPrice: 1.089,
-    slPrice: 1.083,
-    tpPrice: 1.089,
-    quantity: 1,
-    pnl: 400,
-    status: "Closed",
-    date: "2023-10-25",
-    strategy: "SMC (Smart Money Concepts)",
-    setup: "Change of Character after liquidity sweep",
-    conviction: 5,
-    marketRegime: "Clear Uptrend",
-    psychologyTags: ["Patience", "Discipline"],
-    executionMistakes: [],
-  },
-  {
-    id: "2",
-    pair: "BTC/USD",
-    type: "Crypto",
-    direction: "Short",
-    entryPrice: 34500,
-    slPrice: 35000,
-    tpPrice: 33000,
-    quantity: 0.1,
-    pnl: 0,
-    status: "Open",
-    date: "2023-10-26",
-    strategy: "Break & Retest",
-    setup: "Bearish flag breakdown",
-    conviction: 3,
-    marketRegime: "Sideways",
-    psychologyTags: [],
-    executionMistakes: ["Late Entry"],
-  },
-  {
-    id: "3",
-    pair: "NVDA",
-    type: "Stocks",
-    direction: "Long",
-    entryPrice: 420.5,
-    exitPrice: 415.0,
-    slPrice: 410.0,
-    tpPrice: 450.0,
-    quantity: 10,
-    pnl: -55,
-    status: "Closed",
-    date: "2023-10-24",
-    strategy: "Supply & Demand",
-    setup: "Demand zone bounce",
-    conviction: 4,
-    marketRegime: "Volatile",
-    psychologyTags: ["FOMO"],
-    executionMistakes: ["Early Exit"],
-  },
-];
+export const mockTrades: Trade[] = [];
 
-export const mockBacktests: Backtest[] = [
-  {
-    id: "1",
-    date: "2023-10-20",
-    pair: "EUR/USD",
-    strategy: "SMC (Smart Money Concepts)",
-    winRate: 65,
-    profitFactor: 2.1,
-    totalTrades: 50,
-    pnl: 1200,
-    notes: "Tested on 15m timeframe, 2023 data",
-  },
-  {
-    id: "2",
-    date: "2023-10-22",
-    pair: "BTC/USD",
-    strategy: "Break & Retest",
-    winRate: 45,
-    profitFactor: 1.5,
-    totalTrades: 30,
-    pnl: 500,
-    notes: "Tested on 4H timeframe, volatilty adjusted",
-  },
-];
+export const mockBacktests: Backtest[] = [];

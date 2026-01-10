@@ -93,15 +93,10 @@ app.use((req, res, next) => {
 
   // Start server
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-      console.log(`🚀 Server ready at http://localhost:${port}`);
-    },
-  );
+  
+  // FIXED: Removed "0.0.0.0" and reusePort to work on Windows
+  httpServer.listen(port, () => {
+    log(`serving on port ${port}`);
+    console.log(`🚀 Server ready at http://localhost:${port}`);
+  });
 })();

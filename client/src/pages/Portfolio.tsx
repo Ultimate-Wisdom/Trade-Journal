@@ -10,21 +10,26 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { 
-  mockPortfolioAssets, 
   calculateTotalNetWorth, 
   calculateLiquidCash, 
   calculateDigitalAssets,
-  mockAccounts,
   PortfolioAsset,
   RemovedAsset,
 } from "@/lib/mockAccounts";
+import { useQuery } from "@tanstack/react-query";
+import { Account } from "@shared/schema";
 import { DollarSign, TrendingUp, Coins, Plus, Trash2, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function Portfolio() {
-  const [assets, setAssets] = useState(mockPortfolioAssets);
+  // Fetch real accounts from API
+  const { data: accounts } = useQuery<Account[]>({
+    queryKey: ["/api/accounts"],
+  });
+
+  const [assets, setAssets] = useState<PortfolioAsset[]>([]);
   const [removedAssets, setRemovedAssets] = useState<RemovedAsset[]>([]);
   const [open, setOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
@@ -77,9 +82,9 @@ export default function Portfolio() {
     }
   };
 
-  const totalNetWorth = calculateTotalNetWorth() + assets.reduce((sum, a) => sum + a.value, 0) - mockPortfolioAssets.reduce((sum, a) => sum + a.value, 0);
-  const liquidCash = calculateLiquidCash();
-  const digitalAssets = assets.filter((asset) => asset.assetClass === "Digital" || asset.assetClass === "Stablecoin").reduce((sum, a) => sum + a.value, 0);
+  const totalNetWorth = calculateTotalNetWorth(accounts || [], assets);
+  const liquidCash = calculateLiquidCash(accounts || []);
+  const digitalAssets = calculateDigitalAssets(assets);
   const changePercent = ((totalNetWorth - (totalNetWorth * 0.988)) / (totalNetWorth * 0.988)) * 100;
 
   const pieData = assets.map((asset) => ({
@@ -277,25 +282,29 @@ export default function Portfolio() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockAccounts.map((account) => (
+                    {(accounts || []).map((account) => (
                       <div key={account.id} className="flex items-center justify-between p-3 rounded-lg bg-sidebar-accent/30 border border-sidebar-border group">
                         <div className="flex-1">
                           <div className="font-medium text-sm md:text-base">{account.name}</div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {account.firm && <span className="inline-block mr-3">Firm: {account.firm}</span>}
-                            {account.broker && <span className="inline-block">Broker: {account.broker}</span>}
+                            <span className="inline-block">{account.type} Account</span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-mono font-bold text-sm md:text-base">${account.balance.toLocaleString()}</div>
-                          {account.type === "prop" && (
-                            <Badge variant="outline" className="text-xs mt-2">
-                              Prop Firm
-                            </Badge>
-                          )}
+                          <div className="font-mono font-bold text-sm md:text-base">
+                            ${Number(account.initialBalance || 0).toLocaleString()}
+                          </div>
+                          <Badge variant="outline" className="text-xs mt-2">
+                            {account.type}
+                          </Badge>
                         </div>
                       </div>
                     ))}
+                    {(!accounts || accounts.length === 0) && (
+                      <p className="text-center text-muted-foreground text-sm py-4">
+                        No accounts found. Add an account to get started.
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>

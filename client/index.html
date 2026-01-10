@@ -2,26 +2,123 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    
+    <!-- Primary Meta Tags -->
+    <title>OPES - Trading Journal by Fhynk Capital</title>
+    <meta name="title" content="OPES - Trading Journal by Fhynk Capital" />
+    <meta name="description" content="Professional trading journal and backtest tracker. Separate live trades and backtests, auto-calculate risk metrics, track your trading accounts and portfolio." />
+    <meta name="keywords" content="trading journal, backtest tracker, trading analytics, portfolio tracker, forex journal, crypto journal, stock trading" />
+    <meta name="author" content="Fhynk Capital" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="English" />
 
-    <meta property="og:title" content="OPES by Fhynk Capital" />
-    <meta property="og:description" content="Professional trading journal and backtest tracker. Separate live trades and backtests, auto-calculate risk metrics, track your trading accounts and portfolio." />
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
+    <meta property="og:title" content="OPES - Trading Journal by Fhynk Capital" />
+    <meta property="og:description" content="Professional trading journal and backtest tracker. Separate live trades and backtests, auto-calculate risk metrics, track your trading accounts and portfolio." />
     <meta property="og:image" content="/favicon.png" />
+    <meta property="og:site_name" content="OPES" />
+
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@replit" />
-    <meta name="twitter:title" content="OPES by Fhynk Capital" />
+    <meta name="twitter:title" content="OPES - Trading Journal by Fhynk Capital" />
     <meta name="twitter:description" content="Professional trading journal and backtest tracker. Separate live trades and backtests, auto-calculate risk metrics, track your trading accounts and portfolio." />
     <meta name="twitter:image" content="/favicon.png" />
 
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="OPES" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="OPES" />
+    
+    <!-- Favicons -->
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Importing JetBrains Mono for data/code feel and Inter for UI -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Preconnect for Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    
+    <!-- Prevent FOUC (Flash of Unstyled Content) -->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #141418;
+        color: #f8fafc;
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      /* Loading state */
+      .loading-spinner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background-color: #141418;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="loading-spinner">
+        <div style="width: 32px; height: 32px; border: 3px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
+      </div>
+    </div>
+    <script>
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('Service Worker registered:', registration.scope);
+              // Check for updates
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      // New version available
+                      console.log('New version available');
+                      // Optionally show update notification
+                    }
+                  });
+                }
+              });
+            })
+            .catch((error) => {
+              console.log('Service Worker registration failed:', error);
+            });
+        });
+
+        // Listen for service worker updates
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
+      }
+
+      // Prevent zoom on double tap (iOS)
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', (event) => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+          event.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, false);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

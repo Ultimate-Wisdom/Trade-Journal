@@ -39,6 +39,19 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Better code splitting for PWA
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'router-vendor': ['wouter'],
+          'query-vendor': ['@tanstack/react-query'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-toast'],
+        },
+      },
+    },
+    // Improve chunk size warnings
+    chunkSizeWarningLimit: 1000,
   },
   server: {
     host: "0.0.0.0",

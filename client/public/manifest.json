@@ -1,0 +1,44 @@
+{
+  "name": "OPES - Trading Journal by Fhynk Capital",
+  "short_name": "OPES",
+  "description": "Professional trading journal and backtest tracker. Separate live trades and backtests, auto-calculate risk metrics, track your trading accounts and portfolio.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141418",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "business", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "New Trade",
+      "short_name": "New Trade",
+      "description": "Add a new trade entry",
+      "url": "/new-entry",
+      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View trading dashboard",
+      "url": "/",
+      "icons": [{ "src": "/favicon.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

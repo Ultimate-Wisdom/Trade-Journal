@@ -5,7 +5,6 @@ import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
 import { PNLCalendar } from "@/components/dashboard/PNLCalendar";
 import { MostProfitableDay } from "@/components/dashboard/MostProfitableDay";
 import { TradeTable } from "@/components/journal/TradeTable";
-import { mockTrades } from "@/lib/mockData";
 import {
   Activity,
   DollarSign,
@@ -16,24 +15,107 @@ import {
 } from "lucide-react";
 import generatedImage from "@assets/generated_images/abstract_financial_data_visualization_dark_mode.png";
 
-// NEW IMPORTS FOR THE UPGRADE
 import { useQuery } from "@tanstack/react-query";
 import { AddAccountDialog } from "@/components/add-account-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Account } from "@shared/schema";
+import { Account, Trade as DBTrade } from "@shared/schema";
+import { Trade } from "@/lib/mockData";
+import { useMemo } from "react";
 
 export default function Dashboard() {
-  // 1. KEEP YOUR EXISTING MOCK DATA LOGIC
-  const journalTrades = mockTrades.filter((t) => t.type === "journal");
-
-  // 2. INJECT THE NEW REAL-TIME ACCOUNT ENGINE
-  const { data: accounts, isLoading } = useQuery<Account[]>({
+  // Fetch real accounts and trades
+  const { data: accounts, isLoading: isLoadingAccounts } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
   });
 
-  // Calculate Total Capital from Real Database
+  const { data: dbTrades, isLoading: isLoadingTrades } = useQuery<DBTrade[]>({
+    queryKey: ["/api/trades"],
+  });
+
+  const isLoading = isLoadingAccounts || isLoadingTrades;
+
+  // Transform database trades to match the expected Trade interface for dashboard components
+  const trades = useMemo(() => {
+    if (!dbTrades) return [];
+    return dbTrades.map((t) => ({
+      id: String(t.id),
+      pair: t.symbol || "UNKNOWN",
+      type: "Forex" as const, // Default type, can be enhanced later
+      direction: t.direction as "Long" | "Short",
+      entryPrice: Number(t.entryPrice) || 0,
+      exitPrice: t.exitPrice ? Number(t.exitPrice) : undefined,
+      slPrice: t.stopLoss ? Number(t.stopLoss) : undefined,
+      tpPrice: t.takeProfit ? Number(t.takeProfit) : undefined,
+      quantity: Number(t.quantity) || 0,
+      pnl: t.pnl ? Number(t.pnl) : undefined,
+      status: (t.status || "Open") as "Open" | "Closed" | "Pending",
+      date: t.createdAt
+        ? new Date(t.createdAt).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      strategy: t.strategy || "",
+      setup: t.setup || undefined,
+      notes: t.notes || undefined,
+      conviction: t.conviction ? Number(t.conviction) : undefined,
+      marketRegime: t.marketRegime || undefined,
+    })) as Trade[];
+  }, [dbTrades]);
+
+  // Calculate real stats from trades
+  const stats = useMemo(() => {
+    if (!trades || trades.length === 0) {
+      return {
+        totalPnl: 0,
+        winRate: 0,
+        profitFactor: 0,
+        avgRR: 0,
+        winRateTrend: "neutral",
+        pnlTrend: "neutral"
+      };
+    }
+
+    let totalPnl = 0;
+    let wins = 0;
+    let grossProfit = 0;
+    let grossLoss = 0;
+    let totalRR = 0;
+    let rrCount = 0;
+
+    trades.forEach(trade => {
+      // Handle null pnl values
+      const pnl = Number(trade.pnl || 0);
+      totalPnl += pnl;
+      
+      if (pnl > 0) {
+        wins++;
+        grossProfit += pnl;
+      } else if (pnl < 0) {
+        grossLoss += Math.abs(pnl);
+      }
+
+      // Calculate RR if available (rrr = Risk:Reward Ratio)
+      if (trade.rrr) {
+        totalRR += Number(trade.rrr);
+        rrCount++;
+      }
+    });
+
+    const winRate = (wins / trades.length) * 100;
+    const profitFactor = grossLoss === 0 ? grossProfit : grossProfit / grossLoss;
+    const avgRR = rrCount > 0 ? totalRR / rrCount : 0;
+
+    return {
+      totalPnl,
+      winRate,
+      profitFactor,
+      avgRR,
+      winRateTrend: winRate > 50 ? "up" : "down",
+      pnlTrend: totalPnl >= 0 ? "up" : "down"
+    };
+  }, [trades]);
+
+  // Calculate total capital from accounts
   const totalCapital =
-    accounts?.reduce((sum, acc) => sum + Number(acc.initialBalance), 0) || 0;
+    accounts?.reduce((sum, acc) => sum + Number(acc.initialBalance || 0), 0) || 0;
 
   if (isLoading) {
     return (
@@ -43,12 +125,14 @@ export default function Dashboard() {
     );
   }
 
+  const journalTrades = trades;
+
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
-          {/* === HEADER SECTION === */}
+          {/* Header Section */}
           <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
@@ -59,7 +143,6 @@ export default function Dashboard() {
               </p>
             </div>
 
-            {/* THE NEW BUTTON PLACED HERE */}
             <div className="flex items-center gap-4">
               <div className="hidden md:block text-right">
                 <p className="text-xs text-muted-foreground font-mono">
@@ -73,8 +156,7 @@ export default function Dashboard() {
             </div>
           </header>
 
-          {/* === NEW SECTION: TRADING ACCOUNTS === */}
-          {/* This shows your FTMO/Justmarket accounts at the top */}
+          {/* Accounts Section */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Briefcase className="h-5 w-5 text-primary" />
@@ -128,39 +210,39 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* === EXISTING DASHBOARD STATS (Kept Intact) === */}
+          {/* Stats Section */}
           <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-6 md:mb-8">
             <StatsCard
               title="Total P&L"
-              value="$14,250.00"
-              change="+12.5%"
-              trend="up"
+              value={`$${stats.totalPnl.toFixed(2)}`}
+              change={stats.totalPnl === 0 ? "0.0%" : "---"}
+              trend={stats.pnlTrend as "up" | "down" | "neutral"}
               icon={DollarSign}
             />
             <StatsCard
               title="Win Rate"
-              value="68.4%"
-              change="+2.1%"
-              trend="up"
+              value={`${stats.winRate.toFixed(1)}%`}
+              change={stats.winRate === 0 ? "0.0%" : "---"}
+              trend={stats.winRateTrend as "up" | "down" | "neutral"}
               icon={Activity}
             />
             <StatsCard
               title="Profit Factor"
-              value="2.45"
-              change="-0.2"
-              trend="down"
+              value={stats.profitFactor.toFixed(2)}
+              change="---"
+              trend="neutral"
               icon={BarChart3}
             />
             <StatsCard
               title="Avg R:R"
-              value="1:2.8"
-              change="0.0"
+              value={stats.avgRR > 0 ? `1:${stats.avgRR.toFixed(1)}` : "N/A"}
+              change="---"
               trend="neutral"
               icon={TrendingUp}
             />
           </div>
 
-          {/* === EXISTING CHARTS SECTION (Kept Intact) === */}
+          {/* Charts Section */}
           <div className="grid gap-4 md:gap-4 md:grid-cols-7 mb-6 md:mb-8">
             <div className="col-span-2 md:col-span-4 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-4 md:p-6">
               <div className="mb-4 flex items-center justify-between">
@@ -181,8 +263,9 @@ export default function Dashboard() {
                   Weekly Insight
                 </h3>
                 <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-prose">
-                  Your strategy "Breakout" is outperforming all others this week
-                  with a 75% win rate. Consider scaling up.
+                  {journalTrades.length > 0 
+                    ? "Keep logging trades to generate AI insights." 
+                    : "Welcome to OPES. Log your first trade to unlock insights."}
                 </p>
               </div>
             </div>
@@ -202,7 +285,12 @@ export default function Dashboard() {
               Recent Trades
             </h3>
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-              <TradeTable trades={journalTrades.slice(0, 5)} showAccount={true} showRRR={true} showRisk={true} />
+              <TradeTable 
+                trades={(dbTrades || []).slice(0, 5)} 
+                showAccount={true} 
+                showRRR={true} 
+                showRisk={true} 
+              />
             </div>
           </div>
         </div>

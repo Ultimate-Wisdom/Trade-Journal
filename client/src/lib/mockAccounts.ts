@@ -40,100 +40,25 @@ export interface RemovedAccount {
   removalReason: string;
 }
 
-export const mockAccounts: Account[] = [
-  {
-    id: "1",
-    name: "FTMO Challenge #9421",
-    type: "prop",
-    firm: "FTMO",
-    balance: 104200,
-    maxDailyLoss: 5000,
-    profitTarget: 110000,
-    currency: "USD",
-  },
-  {
-    id: "2",
-    name: "FTMO Funded #5532",
-    type: "prop",
-    firm: "FTMO",
-    balance: 215000,
-    maxDailyLoss: 10000,
-    profitTarget: 240000,
-    currency: "USD",
-  },
-  {
-    id: "3",
-    name: "Personal - Binance Spot",
-    type: "personal",
-    broker: "Binance",
-    balance: 12450,
-    currency: "USD",
-  },
-  {
-    id: "4",
-    name: "Personal - Interactive Brokers",
-    type: "personal",
-    broker: "Interactive Brokers",
-    balance: 89200,
-    currency: "USD",
-  },
-];
+// Note: Mock data has been cleared - accounts come from database via API
+export const mockAccounts: Account[] = [];
 
-export const mockPortfolioAssets: PortfolioAsset[] = [
-  {
-    id: "1",
-    symbol: "BTC",
-    amount: 0.5,
-    value: 21500,
-    location: "Cold Wallet",
-    assetClass: "Digital",
-  },
-  {
-    id: "2",
-    symbol: "ETH",
-    amount: 5.0,
-    value: 18750,
-    location: "Metamask",
-    assetClass: "Digital",
-  },
-  {
-    id: "3",
-    symbol: "USDT",
-    amount: 10000,
-    value: 10000,
-    location: "Binance",
-    assetClass: "Stablecoin",
-  },
-  {
-    id: "4",
-    symbol: "SPY",
-    amount: 150,
-    value: 65000,
-    location: "IBKR",
-    assetClass: "Equities",
-  },
-  {
-    id: "5",
-    symbol: "XAU",
-    amount: 2,
-    value: 4200,
-    location: "Physical Safe",
-    assetClass: "Commodities",
-  },
-];
+export const mockPortfolioAssets: PortfolioAsset[] = [];
 
-export const calculateTotalNetWorth = () => {
-  const accountsTotal = mockAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-  const assetsTotal = mockPortfolioAssets.reduce((sum, asset) => sum + asset.value, 0);
+// Helper function to calculate net worth - accepts database Account type from schema
+export const calculateTotalNetWorth = (accounts: Array<{ initialBalance: string | null }> = [], assets: PortfolioAsset[] = []) => {
+  const accountsTotal = accounts.reduce((sum, acc) => sum + (Number(acc.initialBalance) || 0), 0);
+  const assetsTotal = assets.reduce((sum, asset) => sum + asset.value, 0);
   return accountsTotal + assetsTotal;
 };
 
-export const calculateLiquidCash = () => {
-  return mockAccounts.reduce((sum, acc) => sum + acc.balance, 0);
+// Helper function to calculate liquid cash - accepts database Account type from schema
+export const calculateLiquidCash = (accounts: Array<{ initialBalance: string | null }> = []) => {
+  return accounts.reduce((sum, acc) => sum + (Number(acc.initialBalance) || 0), 0);
 };
 
-export const calculateDigitalAssets = () => {
-  return mockPortfolioAssets
+export const calculateDigitalAssets = (assets: PortfolioAsset[] = []) => {
+  return assets
     .filter((asset) => asset.assetClass === "Digital" || asset.assetClass === "Stablecoin")
     .reduce((sum, asset) => sum + asset.value, 0);
 };
