@@ -1,0 +1,2 @@
+-- Database is managed by Drizzle ORM
+-- This file is a placeholder to prevent build errors.
