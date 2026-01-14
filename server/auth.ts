@@ -18,17 +18,19 @@ const scryptAsync = promisify(scrypt);
 // ==========================================
 // 🔒 SECURE CREDENTIALS (ENV VARIABLES)
 // ==========================================
-if (!process.env.MASTER_USERNAME || !process.env.MASTER_PASSWORD) {
-  console.error(
-    "⚠️  WARNING: MASTER_USERNAME and MASTER_PASSWORD not set in Replit Secrets!",
+if (!process.env.MASTER_USERNAME) {
+  throw new Error(
+    "MASTER_USERNAME environment variable is required. Server cannot start without it.",
   );
-  console.error(
-    "⚠️  Using default 'admin' credentials - CHANGE THIS IN PRODUCTION!",
+}
+if (!process.env.MASTER_PASSWORD) {
+  throw new Error(
+    "MASTER_PASSWORD environment variable is required. Server cannot start without it.",
   );
 }
 
-const MASTER_USERNAME = process.env.MASTER_USERNAME || "admin";
-const MASTER_PASSWORD = process.env.MASTER_PASSWORD || "admin";
+const MASTER_USERNAME = process.env.MASTER_USERNAME;
+const MASTER_PASSWORD = process.env.MASTER_PASSWORD;
 
 // ==========================================
 // PASSWORD HASHING
@@ -50,8 +52,14 @@ async function comparePasswords(supplied: string, stored: string) {
 // SETUP AUTHENTICATION
 // ==========================================
 export function setupAuth(app: Express) {
+  if (!process.env.SESSION_SECRET) {
+    throw new Error(
+      "SESSION_SECRET environment variable is required. Server cannot start without it.",
+    );
+  }
+
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "super_secret_trading_key",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
