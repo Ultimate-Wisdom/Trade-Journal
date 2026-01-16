@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 export async function registerRoutes(
   app: Express,
@@ -22,10 +24,31 @@ export async function registerRoutes(
   );
 
   // ==========================================
-  // HEALTH CHECK
+  // HEALTH CHECK (with Database Ping)
   // ==========================================
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", message: "Server is running" });
+  app.get("/api/health", async (_req, res) => {
+    try {
+      // Test database connection
+      const start = Date.now();
+      await db.execute(sql`SELECT 1`);
+      const dbLatency = Date.now() - start;
+      
+      res.json({
+        status: "ok",
+        message: "Server is running",
+        database: "connected",
+        dbLatency: `${dbLatency}ms`,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("⚠️  Health check failed:", error.message);
+      res.status(503).json({
+        status: "error",
+        message: "Database connection failed",
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   // ==========================================
@@ -187,6 +210,8 @@ export async function registerRoutes(
         quantity,
         stopLoss,
         takeProfit,
+        swap,
+        commission,
         status,
         notes,
         strategy,
@@ -213,6 +238,8 @@ export async function registerRoutes(
         quantity: String(quantity),
         stopLoss: stopLoss ? String(stopLoss) : null,
         takeProfit: takeProfit ? String(takeProfit) : null,
+        swap: swap ? String(swap) : null,
+        commission: commission ? String(commission) : null,
         status: status || "Open",
         notes: notes || null,
         strategy: strategy || null,
@@ -251,6 +278,8 @@ export async function registerRoutes(
         "quantity",
         "stopLoss",
         "takeProfit",
+        "swap",
+        "commission",
         "pnl",
         "rrr",
         "riskPercent",
@@ -297,6 +326,288 @@ export async function registerRoutes(
       res
         .status(500)
         .json({ message: error.message || "Failed to delete trade" });
+    }
+  });
+
+  // ==========================================
+  // BACKTEST ROUTES
+  // ==========================================
+  app.get("/api/backtests", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const userId = req.user!.id;
+      const backtests = await storage.getBacktests(userId);
+      res.json(backtests);
+    } catch (error: any) {
+      console.error("❌ GET /api/backtests failed:", error);
+      res
+        .status(500)
+        .json({ message: error.message || "Failed to fetch backtests" });
+    }
+  });
+
+  app.post("/api/backtests", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { symbol, direction, rrr, outcome, strategy, entryTime } = req.body;
+      const userId = req.user!.id;
+
+      const backtest = await storage.createBacktest({
+        userId,
+        symbol: String(symbol).toUpperCase(),
+        direction,
+        rrr: String(rrr),
+        outcome,
+        strategy,
+        entryTime: entryTime || null,
+      });
+
+      res.status(201).json(backtest);
+    } catch (error: any) {
+      console.error("❌ POST /api/backtests failed:", error);
+      res
+        .status(500)
+        .json({ message: error.message || "Failed to create backtest" });
+    }
+  });
+
+  app.delete("/api/backtests/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const deleted = await storage.deleteBacktest(id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Backtest not found" });
+      }
+
+      res.json({ message: "Backtest deleted successfully" });
+    } catch (error: any) {
+      console.error("❌ DELETE /api/backtests/:id failed:", error);
+      res
+        .status(500)
+        .json({ message: error.message || "Failed to delete backtest" });
+    }
+  });
+
+  // ==========================================
+  // TAGS ROUTES
+  // ==========================================
+  
+  // Get all tags for the user
+  app.get("/api/tags", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const userId = req.user!.id;
+      const tags = await storage.getTags(userId);
+      res.json(tags);
+    } catch (error: any) {
+      console.error("❌ GET /api/tags failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch tags" });
+    }
+  });
+
+  // Create a new tag
+  app.post("/api/tags", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const newTag = { ...req.body, userId: req.user!.id };
+      const createdTag = await storage.createTag(newTag);
+      res.status(201).json(createdTag);
+    } catch (error: any) {
+      console.error("❌ POST /api/tags failed:", error);
+      res.status(500).json({ message: error.message || "Failed to create tag" });
+    }
+  });
+
+  // Delete a tag
+  app.delete("/api/tags/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const deleted = await storage.deleteTag(id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Tag not found" });
+      }
+
+      res.json({ message: "Tag deleted successfully" });
+    } catch (error: any) {
+      console.error("❌ DELETE /api/tags/:id failed:", error);
+      res.status(500).json({ message: error.message || "Failed to delete tag" });
+    }
+  });
+
+  // Get tags for a specific trade
+  app.get("/api/trades/:id/tags", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const tags = await storage.getTradeTag(id);
+      res.json(tags);
+    } catch (error: any) {
+      console.error("❌ GET /api/trades/:id/tags failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch trade tags" });
+    }
+  });
+
+  // Add a tag to a trade
+  app.post("/api/trades/:id/tags", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const { tagId } = req.body;
+      
+      await storage.addTagToTrade(id, tagId);
+      res.status(201).json({ message: "Tag added to trade" });
+    } catch (error: any) {
+      console.error("❌ POST /api/trades/:id/tags failed:", error);
+      res.status(500).json({ message: error.message || "Failed to add tag to trade" });
+    }
+  });
+
+  // Remove a tag from a trade
+  app.delete("/api/trades/:id/tags/:tagId", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id, tagId } = req.params;
+      await storage.removeTagFromTrade(id, tagId);
+      res.json({ message: "Tag removed from trade" });
+    } catch (error: any) {
+      console.error("❌ DELETE /api/trades/:id/tags/:tagId failed:", error);
+      res.status(500).json({ message: error.message || "Failed to remove tag from trade" });
+    }
+  });
+
+  // ==========================================
+  // BALANCE ADJUSTMENT ROUTES
+  // ==========================================
+  
+  // Create a balance adjustment
+  app.post("/api/accounts/:accountId/adjust-balance", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { accountId } = req.params;
+      const { currentBalance, reason } = req.body;
+      const userId = req.user!.id;
+
+      // Get account to calculate difference
+      const account = await storage.getAccount(accountId, userId);
+      if (!account) {
+        return res.status(404).json({ message: "Account not found" });
+      }
+
+      // Calculate system balance (initial + all P&L)
+      const trades = await storage.getTrades(userId);
+      const accountTrades = trades.filter(t => t.accountId === accountId);
+      const totalPnl = accountTrades.reduce((sum, trade) => {
+        return sum + (trade.pnl ? parseFloat(String(trade.pnl)) : 0);
+      }, 0);
+      const systemBalance = parseFloat(String(account.initialBalance)) + totalPnl;
+
+      // Calculate adjustment needed
+      const adjustmentAmount = parseFloat(currentBalance) - systemBalance;
+
+      // Create adjustment entry
+      const adjustmentEntry = {
+        userId,
+        accountId,
+        tradeType: "ADJUSTMENT",
+        symbol: null,
+        direction: null,
+        entryPrice: null,
+        quantity: null,
+        pnl: String(adjustmentAmount),
+        status: "Closed",
+        notes: reason || "Balance correction",
+        entryDate: new Date().toISOString(),
+      };
+
+      const createdAdjustment = await storage.createTrade(adjustmentEntry);
+
+      res.status(201).json({
+        adjustment: createdAdjustment,
+        previousBalance: systemBalance,
+        newBalance: currentBalance,
+        adjustmentAmount,
+      });
+    } catch (error: any) {
+      console.error("❌ POST /api/accounts/:accountId/adjust-balance failed:", error);
+      res.status(500).json({ message: error.message || "Failed to create balance adjustment" });
+    }
+  });
+
+  // ==========================================
+  // TRADE TEMPLATES ROUTES
+  // ==========================================
+  
+  app.get("/api/templates", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const userId = req.user!.id;
+      const templates = await storage.getTradeTemplates(userId);
+      res.json(templates);
+    } catch (error: any) {
+      console.error("❌ GET /api/templates failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch templates" });
+    }
+  });
+
+  app.post("/api/templates", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const newTemplate = { ...req.body, userId: req.user!.id };
+      const createdTemplate = await storage.createTradeTemplate(newTemplate);
+      res.status(201).json(createdTemplate);
+    } catch (error: any) {
+      console.error("❌ POST /api/templates failed:", error);
+      res.status(500).json({ message: error.message || "Failed to create template" });
+    }
+  });
+
+  app.delete("/api/templates/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const deleted = await storage.deleteTradeTemplate(id, userId);
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+
+      res.json({ message: "Template deleted successfully" });
+    } catch (error: any) {
+      console.error("❌ DELETE /api/templates/:id failed:", error);
+      res.status(500).json({ message: error.message || "Failed to delete template" });
     }
   });
 

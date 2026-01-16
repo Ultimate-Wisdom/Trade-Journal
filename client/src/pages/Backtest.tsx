@@ -1,8 +1,7 @@
 import { MobileNav } from "@/components/layout/MobileNav";
-import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
-import { Backtest as BacktestType, RemovedStrategy, Trade } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,195 +14,230 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Search,
-  PlusCircle,
-  Save,
-  Trash2,
-  History,
   TrendingUp,
   TrendingDown,
+  Target,
+  Clock,
+  Save,
+  Trash2,
   BarChart3,
-  DollarSign,
-  AlertCircle,
+  Trophy,
+  Loader2,
   Download,
-  X,
+  FileText,
+  FileJson,
 } from "lucide-react";
-import { Link } from "wouter";
 import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Backtest as BacktestType } from "@shared/schema";
+import { mockStrategies } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { downloadBacktestsCSV, downloadBacktestsJSON } from "@/lib/exportUtils";
+
 export default function Backtest() {
   const { toast } = useToast();
-  const [backtests, setBacktests] = useState<BacktestType[]>([]);
-  const [removedStrategies, setRemovedStrategies] = useState<RemovedStrategy[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [strategyFilter, setStrategyFilter] = useState("all");
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
+  
+  // Form state
+  const [symbol, setSymbol] = useState("");
+  const [direction, setDirection] = useState<"Long" | "Short">("Long");
+  const [rrr, setRrr] = useState("");
+  const [outcome, setOutcome] = useState<"TP" | "SL">("TP");
+  const [strategy, setStrategy] = useState("");
+  const [entryTime, setEntryTime] = useState("");
+  const [newStrategyOpen, setNewStrategyOpen] = useState(false);
+  const [newStrategyName, setNewStrategyName] = useState("");
+  const [strategies, setStrategies] = useState<string[]>(mockStrategies);
 
-  // Transform Backtest to Trade format for StrategyInsights component
-  const backtestsAsTrades = useMemo(() => {
-    return backtests.map((bt) => {
-      // Calculate wins based on winRate
-      const wins = Math.round((bt.winRate / 100) * bt.totalTrades);
-      // Create a synthetic Trade object for display purposes
-      // Note: We provide dummy values for price fields to satisfy the Trade interface
-      // but StrategyInsights will only use status, pnl, and strategy for calculations
-      return {
-        id: bt.id,
-        pair: bt.pair,
-        type: "Forex" as const,
-        direction: "Long" as const,
-        entryPrice: 1, // Dummy value - not used in winrate calculations
-        slPrice: 0.9, // Dummy value - not used in winrate calculations
-        tpPrice: 1.1, // Dummy value - not used in winrate calculations
-        quantity: 1, // Dummy value
-        status: "Closed" as const, // All backtests are considered closed
-        date: bt.date,
-        strategy: bt.strategy,
-        pnl: bt.totalTrades > 0 ? (bt.pnl || 0) / bt.totalTrades : 0, // Average PnL per trade
-        notes: bt.notes,
-      } as Trade;
+  // Fetch backtests
+  const { data: backtests = [], isLoading } = useQuery<BacktestType[]>({
+    queryKey: ["/api/backtests"],
+  });
+
+  // Create backtest mutation
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/backtests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to create backtest");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/backtests"] });
+      toast({
+        title: "Success",
+        description: "Backtest saved successfully",
+      });
+      // Reset form
+      setSymbol("");
+      setRrr("");
+      setEntryTime("");
+      setDirection("Long");
+      setOutcome("TP");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save backtest",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete backtest mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/backtests/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete backtest");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/backtests"] });
+      toast({
+        title: "Success",
+        description: "Backtest deleted successfully",
+      });
+    },
+  });
+
+  // Analysis calculations
+  const analysis = useMemo(() => {
+    if (!backtests.length) return null;
+
+    // Overall stats
+    const totalTests = backtests.length;
+    const tpCount = backtests.filter(b => b.outcome === "TP").length;
+    const winRate = (tpCount / totalTests) * 100;
+    const avgRRR = backtests.reduce((sum, b) => sum + Number(b.rrr || 0), 0) / totalTests;
+
+    // By strategy
+    const byStrategy: Record<string, { total: number; tp: number; rrr: number[] }> = {};
+    backtests.forEach(b => {
+      if (!byStrategy[b.strategy]) {
+        byStrategy[b.strategy] = { total: 0, tp: 0, rrr: [] };
+      }
+      byStrategy[b.strategy].total++;
+      if (b.outcome === "TP") byStrategy[b.strategy].tp++;
+      byStrategy[b.strategy].rrr.push(Number(b.rrr || 0));
     });
-  }, [backtests]);
 
-  // Filter backtests
-  const filteredBacktests = useMemo(() => {
-    return backtests.filter((bt) => {
-      const matchesSearch =
-        bt.pair.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bt.strategy.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bt.notes.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStrategy = strategyFilter === "all" || bt.strategy === strategyFilter;
-      return matchesSearch && matchesStrategy;
+    const strategyStats = Object.entries(byStrategy).map(([name, data]) => ({
+      name,
+      winRate: (data.tp / data.total) * 100,
+      total: data.total,
+      avgRRR: data.rrr.reduce((a, b) => a + b, 0) / data.rrr.length,
+    })).sort((a, b) => b.winRate - a.winRate);
+
+    // By session (based on entry time)
+    const sessions = {
+      Asian: { start: "00:00", end: "08:59", tp: 0, total: 0 },
+      London: { start: "09:00", end: "16:59", tp: 0, total: 0 },
+      NewYork: { start: "17:00", end: "23:59", tp: 0, total: 0 },
+    };
+
+    backtests.forEach(b => {
+      if (!b.entryTime) return;
+      const time = b.entryTime;
+      
+      for (const [session, range] of Object.entries(sessions)) {
+        if (time >= range.start && time <= range.end) {
+          sessions[session as keyof typeof sessions].total++;
+          if (b.outcome === "TP") {
+            sessions[session as keyof typeof sessions].tp++;
+          }
+          break;
+        }
+      }
     });
-  }, [backtests, searchQuery, strategyFilter]);
 
-  // Get unique strategies for filter
-  const availableStrategies = useMemo(() => {
-    return Array.from(new Set(backtests.map((bt) => bt.strategy))).sort();
+    const sessionStats = Object.entries(sessions)
+      .map(([name, data]) => ({
+        name,
+        winRate: data.total > 0 ? (data.tp / data.total) * 100 : 0,
+        total: data.total,
+      }))
+      .filter(s => s.total > 0)
+      .sort((a, b) => b.winRate - a.winRate);
+
+    // By pair
+    const byPair: Record<string, { total: number; tp: number }> = {};
+    backtests.forEach(b => {
+      if (!byPair[b.symbol]) {
+        byPair[b.symbol] = { total: 0, tp: 0 };
+      }
+      byPair[b.symbol].total++;
+      if (b.outcome === "TP") byPair[b.symbol].tp++;
+    });
+
+    const pairStats = Object.entries(byPair)
+      .map(([symbol, data]) => ({
+        symbol,
+        winRate: (data.tp / data.total) * 100,
+        total: data.total,
+      }))
+      .sort((a, b) => b.winRate - a.winRate);
+
+    return {
+      totalTests,
+      winRate,
+      avgRRR,
+      strategyStats,
+      sessionStats,
+      pairStats,
+      bestStrategy: strategyStats[0],
+      bestSession: sessionStats[0],
+      bestPair: pairStats[0],
+    };
   }, [backtests]);
 
   const handleSave = () => {
-    toast({
-      title: "Session Saved",
-      description: "Backtest session has been saved successfully.",
-    });
-  };
-
-  const handleExport = () => {
-    const dataStr = JSON.stringify(backtests, null, 2);
-    const dataBlob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `backtest-session-${new Date().toISOString().split("T")[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Export Successful",
-      description: "Backtest data has been exported.",
-    });
-  };
-
-  const handleDelete = (id: string) => {
-    setDeleteTargetId(id);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = () => {
-    if (deleteTargetId) {
-      setBacktests(backtests.filter((bt) => bt.id !== deleteTargetId));
+    if (!symbol.trim() || !rrr || !strategy) {
       toast({
-        title: "Deleted",
-        description: "Backtest entry has been removed.",
+        title: "Validation Error",
+        description: "Please fill in Symbol, RRR, and Strategy",
+        variant: "destructive",
       });
-      setDeleteDialogOpen(false);
-      setDeleteTargetId(null);
+      return;
     }
-  };
 
-  const handleClearAll = () => {
-    setClearAllDialogOpen(true);
-  };
-
-  const confirmClearAll = () => {
-    setBacktests([]);
-    toast({
-      title: "Session Cleared",
-      description: "All backtest data has been removed.",
-      variant: "destructive",
+    createMutation.mutate({
+      symbol: symbol.toUpperCase().trim(),
+      direction,
+      rrr,
+      outcome,
+      strategy,
+      entryTime: entryTime || null,
     });
-    setClearAllDialogOpen(false);
   };
 
-  const handleRemoveStrategy = (strategyName: string, reason: string) => {
-    const strategyBacktests = backtests.filter((t) => t.strategy === strategyName);
-    if (strategyBacktests.length > 0) {
-      // Calculate average winrate for this strategy
-      const avgWinrate =
-        strategyBacktests.reduce((sum, bt) => sum + bt.winRate, 0) /
-        strategyBacktests.length;
-
-      setRemovedStrategies([
-        ...removedStrategies,
-        {
-          name: strategyName,
-          removedDate: new Date().toLocaleDateString(),
-          removalReason: reason,
-          winrate: avgWinrate,
-          tradesCount: strategyBacktests.reduce((sum, bt) => sum + bt.totalTrades, 0),
-        },
-      ]);
-
-      setBacktests(backtests.filter((t) => t.strategy !== strategyName));
-      toast({
-        title: "Strategy Removed",
-        description: `${strategyName} has been removed from backtests.`,
-      });
-    }
-  };
-
-  // Calculate summary stats
-  const summaryStats = useMemo(() => {
-    if (filteredBacktests.length === 0) {
-      return {
-        totalPnL: 0,
-        avgWinRate: 0,
-        avgProfitFactor: 0,
-        totalTrades: 0,
-      };
-    }
-
-    const totalPnL = filteredBacktests.reduce((sum, bt) => sum + bt.pnl, 0);
-    const avgWinRate =
-      filteredBacktests.reduce((sum, bt) => sum + bt.winRate, 0) /
-      filteredBacktests.length;
-    const avgProfitFactor =
-      filteredBacktests.reduce((sum, bt) => sum + bt.profitFactor, 0) /
-      filteredBacktests.length;
-    const totalTrades = filteredBacktests.reduce((sum, bt) => sum + bt.totalTrades, 0);
-
-    return {
-      totalPnL,
-      avgWinRate,
-      avgProfitFactor,
-      totalTrades,
-    };
-  }, [filteredBacktests]);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
@@ -211,405 +245,483 @@ export default function Backtest() {
       <main className="flex-1 overflow-y-auto pt-20">
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
           {/* Header */}
-          <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                Backtest History
-              </h1>
-              <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                Review and analyze your backtested trading strategies.
-              </p>
-            </div>
-            <div className="flex gap-2 w-full md:w-auto">
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => setShowHistory(!showHistory)}
-              >
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {showHistory ? "Back to Backtests" : "Removed Strategies"}
-                </span>
-              </Button>
-              <Link href="/new-entry">
-                <Button className="gap-2 w-full md:w-auto flex-1 md:flex-none">
-                  <PlusCircle className="h-4 w-4" />
-                  New Backtest
-                </Button>
-              </Link>
-            </div>
+          <header className="mb-6 md:mb-8">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Backtest Lab
+            </h1>
+            <p className="text-xs md:text-sm text-muted-foreground mt-1">
+              Hone your edge • Test strategies • Find your optimal setup
+            </p>
           </header>
 
-          {!showHistory ? (
-            <>
-              {/* Search and Filters */}
-              <div className="mb-6 flex flex-col md:flex-row items-stretch md:items-center gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Search by pair, strategy, or notes..."
-                    className="pl-8 bg-card/50 h-10"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <Select value={strategyFilter} onValueChange={setStrategyFilter}>
-                  <SelectTrigger className="w-full md:w-[200px] bg-card/50 h-10">
-                    <SelectValue placeholder="Filter by strategy" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Strategies</SelectItem>
-                    {availableStrategies.map((strategy) => (
-                      <SelectItem key={strategy} value={strategy}>
-                        {strategy}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 h-10 md:w-auto"
-                  onClick={handleSave}
-                >
-                  <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save Session</span>
-                </Button>
-              </div>
-
-              {/* Summary Stats */}
-              {filteredBacktests.length > 0 && (
-                <div className="grid gap-4 md:gap-4 grid-cols-2 md:grid-cols-4 mb-6">
-                  <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Total P&L</p>
-                          <p
-                            className={cn(
-                              "text-xl font-bold font-mono",
-                              summaryStats.totalPnL >= 0 ? "text-profit" : "text-destructive"
-                            )}
-                          >
-                            {summaryStats.totalPnL >= 0 ? "+" : ""}
-                            ${summaryStats.totalPnL.toLocaleString()}
-                          </p>
-                        </div>
-                        <DollarSign className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Avg Win Rate</p>
-                          <p className="text-xl font-bold font-mono text-primary">
-                            {summaryStats.avgWinRate.toFixed(1)}%
-                          </p>
-                        </div>
-                        <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Avg Profit Factor</p>
-                          <p className="text-xl font-bold font-mono text-primary">
-                            {summaryStats.avgProfitFactor.toFixed(2)}
-                          </p>
-                        </div>
-                        <BarChart3 className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Total Trades</p>
-                          <p className="text-xl font-bold font-mono">
-                            {summaryStats.totalTrades}
-                          </p>
-                        </div>
-                        <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Strategy Insights */}
-              {backtestsAsTrades.length > 0 && backtests.some(bt => bt.strategy) && (
-                <StrategyInsights
-                  trades={backtestsAsTrades}
-                  onRemoveStrategy={handleRemoveStrategy}
-                  title="Backtest Strategy Insights"
-                />
-              )}
-
-              {/* Backtest Table */}
-              <div className="space-y-4 mt-6 md:mt-8">
-                {filteredBacktests.length > 0 ? (
-                  <>
-                    <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                      <CardHeader>
-                        <CardTitle className="text-lg">Backtest Results</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="hover:bg-transparent">
-                                <TableHead>Date</TableHead>
-                                <TableHead>Pair</TableHead>
-                                <TableHead>Strategy</TableHead>
-                                <TableHead className="text-right">Total Trades</TableHead>
-                                <TableHead className="text-right">Win Rate</TableHead>
-                                <TableHead className="text-right">Profit Factor</TableHead>
-                                <TableHead className="text-right">P&L</TableHead>
-                                <TableHead className="w-16"></TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {filteredBacktests.map((backtest) => (
-                                <TableRow
-                                  key={backtest.id}
-                                  className="group cursor-pointer hover:bg-muted/50"
-                                >
-                                  <TableCell className="font-medium text-muted-foreground">
-                                    {new Date(backtest.date).toLocaleDateString("en-US", {
-                                      month: "short",
-                                      day: "numeric",
-                                      year: "numeric",
-                                    })}
-                                  </TableCell>
-                                  <TableCell className="font-bold font-mono">
-                                    {backtest.pair}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline" className="font-mono text-xs">
-                                      {backtest.strategy}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono">
-                                    {backtest.totalTrades}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      <span
-                                        className={cn(
-                                          "font-mono font-bold",
-                                          backtest.winRate >= 60
-                                            ? "text-profit"
-                                            : backtest.winRate >= 50
-                                              ? "text-primary"
-                                              : "text-destructive"
-                                        )}
-                                      >
-                                        {backtest.winRate.toFixed(1)}%
-                                      </span>
-                                      {backtest.winRate >= 60 ? (
-                                        <TrendingUp className="h-4 w-4 text-profit" />
-                                      ) : backtest.winRate < 50 ? (
-                                        <TrendingDown className="h-4 w-4 text-destructive" />
-                                      ) : null}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono">
-                                    {backtest.profitFactor.toFixed(2)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={cn(
-                                      "text-right font-mono font-bold",
-                                      backtest.pnl >= 0 ? "text-profit" : "text-destructive"
-                                    )}
-                                  >
-                                    {backtest.pnl >= 0 ? "+" : ""}${backtest.pnl.toLocaleString()}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDelete(backtest.id);
-                                      }}
-                                      className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Action Buttons */}
-                    <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                      <CardContent className="pt-6">
-                        <div className="flex flex-col md:flex-row gap-3">
-                          <Button
-                            variant="outline"
-                            className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={handleClearAll}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Clear All Backtests
-                          </Button>
-                          <Button variant="outline" className="gap-2" onClick={handleExport}>
-                            <Download className="h-4 w-4" />
-                            Export Session
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </>
-                ) : (
-                  <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-                    <CardContent className="pt-12 pb-12">
-                      <div className="text-center">
-                        <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground mb-4">
-                          {searchQuery || strategyFilter !== "all"
-                            ? "No backtests match your filters."
-                            : "No backtest data yet. Start by creating a new backtest!"}
-                        </p>
-                        {searchQuery || strategyFilter !== "all" ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setSearchQuery("");
-                              setStrategyFilter("all");
-                            }}
-                          >
-                            Clear Filters
-                          </Button>
-                        ) : (
-                          <Link href="/new-entry">
-                            <Button className="gap-2">
-                              <PlusCircle className="h-4 w-4" />
-                              Create Backtest Entry
-                            </Button>
-                          </Link>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </>
-          ) : (
-            /* Removed Strategies History */
-            <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Entry Form */}
+            <Card className="md:col-span-1 border-sidebar-border bg-card/50 backdrop-blur-sm">
               <CardHeader>
-                <CardTitle className="text-base md:text-lg flex items-center gap-2">
-                  <History className="h-5 w-5 text-primary" />
-                  Removed Strategies History
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  Quick Entry
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                {removedStrategies.length > 0 ? (
-                  <div className="space-y-4">
-                    {removedStrategies.map((strategy) => (
-                      <div
-                        key={strategy.name}
-                        className="p-4 rounded-lg bg-destructive/10 border border-destructive/30"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <p className="font-semibold text-sm">{strategy.name}</p>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-xs",
-                                  strategy.winrate >= 60
-                                    ? "border-profit text-profit"
-                                    : strategy.winrate >= 50
-                                      ? "border-primary text-primary"
-                                      : "border-destructive text-destructive"
-                                )}
-                              >
-                                {strategy.winrate.toFixed(1)}% WR
-                              </Badge>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                              <p>Total Trades: {strategy.tradesCount}</p>
-                              <p>Removed: {strategy.removedDate}</p>
-                            </div>
-                            <p className="text-sm text-destructive mt-2 font-medium">
-                              Reason: {strategy.removalReason}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="symbol">
+                    Symbol/Pair <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="symbol"
+                    value={symbol}
+                    onChange={(e) => setSymbol(e.target.value)}
+                    placeholder="e.g., EURUSD"
+                    className="uppercase"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Direction</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={direction === "Long" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setDirection("Long")}
+                    >
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Long
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={direction === "Short" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setDirection("Short")}
+                    >
+                      <TrendingDown className="h-4 w-4 mr-2" />
+                      Short
+                    </Button>
                   </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">
-                    No removed strategies yet
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="rrr">
+                    Risk:Reward Ratio <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="rrr"
+                    type="number"
+                    step="0.1"
+                    value={rrr}
+                    onChange={(e) => setRrr(e.target.value)}
+                    placeholder="e.g., 2.5"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    1:{rrr || "?"} ratio
                   </p>
-                )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Outcome</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={outcome === "TP" ? "default" : "outline"}
+                      className={cn(
+                        "flex-1",
+                        outcome === "TP" && "bg-green-600 hover:bg-green-700"
+                      )}
+                      onClick={() => setOutcome("TP")}
+                    >
+                      TP
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={outcome === "SL" ? "default" : "outline"}
+                      className={cn(
+                        "flex-1",
+                        outcome === "SL" && "bg-red-600 hover:bg-red-700"
+                      )}
+                      onClick={() => setOutcome("SL")}
+                    >
+                      SL
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="strategy">
+                    Strategy <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Select value={strategy} onValueChange={setStrategy}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select strategy" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {strategies.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Dialog open={newStrategyOpen} onOpenChange={setNewStrategyOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="icon">
+                          <TrendingUp className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add New Strategy</DialogTitle>
+                        </DialogHeader>
+                        <div className="py-4 space-y-4">
+                          <Input
+                            placeholder="Strategy Name"
+                            value={newStrategyName}
+                            onChange={(e) => setNewStrategyName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newStrategyName.trim()) {
+                                setStrategies([...strategies, newStrategyName.trim()]);
+                                setStrategy(newStrategyName.trim());
+                                setNewStrategyOpen(false);
+                                setNewStrategyName("");
+                              }
+                            }}
+                          />
+                          <Button
+                            className="w-full"
+                            onClick={() => {
+                              if (newStrategyName.trim()) {
+                                setStrategies([...strategies, newStrategyName.trim()]);
+                                setStrategy(newStrategyName.trim());
+                                setNewStrategyOpen(false);
+                                setNewStrategyName("");
+                              }
+                            }}
+                            disabled={!newStrategyName.trim()}
+                          >
+                            Add Strategy
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="entryTime" className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5" />
+                    Entry Time (24h)
+                  </Label>
+                  <Input
+                    id="entryTime"
+                    type="time"
+                    value={entryTime}
+                    onChange={(e) => setEntryTime(e.target.value)}
+                    placeholder="14:30"
+                    className="font-mono"
+                    step="60"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    24-hour format (e.g., 14:30 for 2:30 PM)
+                  </p>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={handleSave}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Backtest
+                    </>
+                  )}
+                </Button>
               </CardContent>
             </Card>
-          )}
 
-          {/* Delete Confirmation Dialog */}
-          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete Backtest Entry</DialogTitle>
-                <DialogDescription>
-                  Are you sure you want to delete this backtest entry? This action cannot be
-                  undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button variant="destructive" onClick={confirmDelete}>
-                  Delete
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            {/* Analysis */}
+            <div className="md:col-span-2 space-y-6">
+              {backtests.length > 0 && (
+                <div className="flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <Download className="h-4 w-4" />
+                        Export Results
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          downloadBacktestsCSV(backtests);
+                          toast({
+                            title: "Export Successful",
+                            description: `Exported ${backtests.length} backtests as CSV`,
+                          });
+                        }}
+                        className="gap-2"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Export as CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          downloadBacktestsJSON(backtests);
+                          toast({
+                            title: "Export Successful",
+                            description: `Exported ${backtests.length} backtests as JSON`,
+                          });
+                        }}
+                        className="gap-2"
+                      >
+                        <FileJson className="h-4 w-4" />
+                        Export as JSON
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+              {analysis ? (
+                <>
+                  {/* Overall Stats */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <Card className="border-sidebar-border bg-card/50">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Total Tests</p>
+                        <p className="text-2xl font-bold">{analysis.totalTests}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-sidebar-border bg-card/50">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Win Rate</p>
+                        <p className="text-2xl font-bold text-primary">
+                          {analysis.winRate.toFixed(1)}%
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-sidebar-border bg-card/50">
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Avg RRR</p>
+                        <p className="text-2xl font-bold">1:{analysis.avgRRR.toFixed(2)}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-          {/* Clear All Confirmation Dialog */}
-          <Dialog open={clearAllDialogOpen} onOpenChange={setClearAllDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Clear All Backtests</DialogTitle>
-                <DialogDescription>
-                  Are you sure you want to delete all backtest data for this session? This action
-                  cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setClearAllDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button variant="destructive" onClick={confirmClearAll}>
-                  Clear All
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                  {/* Best Performers */}
+                  {analysis.bestStrategy && (
+                    <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Trophy className="h-4 w-4 text-yellow-500" />
+                          Best Performers
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium">Best Strategy</p>
+                            <p className="text-xs text-muted-foreground">
+                              {analysis.bestStrategy.name}
+                            </p>
+                          </div>
+                          <Badge variant="secondary" className="text-primary">
+                            {analysis.bestStrategy.winRate.toFixed(1)}% WR
+                          </Badge>
+                        </div>
+                        {analysis.bestSession && (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">Best Session</p>
+                              <p className="text-xs text-muted-foreground">
+                                {analysis.bestSession.name}
+                              </p>
+                            </div>
+                            <Badge variant="secondary" className="text-primary">
+                              {analysis.bestSession.winRate.toFixed(1)}% WR
+                            </Badge>
+                          </div>
+                        )}
+                        {analysis.bestPair && (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">Best Pair</p>
+                              <p className="text-xs text-muted-foreground">
+                                {analysis.bestPair.symbol}
+                              </p>
+                            </div>
+                            <Badge variant="secondary" className="text-primary">
+                              {analysis.bestPair.winRate.toFixed(1)}% WR
+                            </Badge>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Strategy Breakdown */}
+                  <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4 text-primary" />
+                        Strategy Analysis
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {analysis.strategyStats.map((stat) => (
+                          <div
+                            key={stat.name}
+                            className="flex items-center justify-between p-3 rounded-lg bg-background/50"
+                          >
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{stat.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {stat.total} tests • 1:{stat.avgRRR.toFixed(2)} avg RRR
+                              </p>
+                            </div>
+                            <Badge
+                              variant={stat.winRate >= 50 ? "default" : "secondary"}
+                              className={cn(
+                                stat.winRate >= 50 && "bg-green-600"
+                              )}
+                            >
+                              {stat.winRate.toFixed(1)}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Session Analysis */}
+                  {analysis.sessionStats.length > 0 && (
+                    <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-primary" />
+                          Session Analysis
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {analysis.sessionStats.map((stat) => (
+                            <div
+                              key={stat.name}
+                              className="flex items-center justify-between p-3 rounded-lg bg-background/50"
+                            >
+                              <div>
+                                <p className="text-sm font-medium">{stat.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {stat.total} tests
+                                </p>
+                              </div>
+                              <Badge
+                                variant={stat.winRate >= 50 ? "default" : "secondary"}
+                                className={cn(
+                                  stat.winRate >= 50 && "bg-green-600"
+                                )}
+                              >
+                                {stat.winRate.toFixed(1)}%
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+                  <CardContent className="p-12 text-center">
+                    <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-semibold mb-2">No Backtests Yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Start logging your backtests to see analysis and insights
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Recent Backtests Table */}
+              {backtests.length > 0 && (
+                <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Recent Backtests</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Symbol</TableHead>
+                            <TableHead>Direction</TableHead>
+                            <TableHead>Strategy</TableHead>
+                            <TableHead>RRR</TableHead>
+                            <TableHead>Outcome</TableHead>
+                            <TableHead>Time</TableHead>
+                            <TableHead></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {backtests.slice(0, 20).map((bt) => (
+                            <TableRow key={bt.id}>
+                              <TableCell className="font-medium">{bt.symbol}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    bt.direction === "Long"
+                                      ? "text-green-600"
+                                      : "text-red-600"
+                                  )}
+                                >
+                                  {bt.direction}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm">{bt.strategy}</TableCell>
+                              <TableCell className="text-sm">1:{bt.rrr}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={cn(
+                                    bt.outcome === "TP"
+                                      ? "bg-green-600"
+                                      : "bg-red-600"
+                                  )}
+                                >
+                                  {bt.outcome}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {bt.entryTime || "-"}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => deleteMutation.mutate(bt.id)}
+                                  disabled={deleteMutation.isPending}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
         </div>
       </main>
     </div>

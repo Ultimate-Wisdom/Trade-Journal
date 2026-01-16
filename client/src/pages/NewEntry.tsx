@@ -35,6 +35,9 @@ import {
   Brain,
   Settings,
   Briefcase,
+  Star,
+  Clock,
+  Calendar,
 } from "lucide-react";
 import { Link, useRoute, useLocation } from "wouter";
 import { useState, useEffect } from "react";
@@ -65,13 +68,21 @@ export default function NewEntry() {
   const [direction, setDirection] = useState<"Long" | "Short">("Long");
   const [entryPrice, setEntryPrice] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [pnl, setPnl] = useState("");
+  const [riskAmount, setRiskAmount] = useState("");
+  const [exitCondition, setExitCondition] = useState("");
+  const [exitReason, setExitReason] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [takeProfit, setTakeProfit] = useState("");
+  const [swap, setSwap] = useState("");
+  const [commission, setCommission] = useState("");
   const [strategy, setStrategy] = useState("");
   const [notes, setNotes] = useState("");
   const [setup, setSetup] = useState("");
   const [conviction, setConviction] = useState(3);
   const [marketRegime, setMarketRegime] = useState("");
+  const [entryDate, setEntryDate] = useState(""); // Date in YYYY-MM-DD format
+  const [entryTime, setEntryTime] = useState(""); // Time in HH:MM format
   const [psychologyTags, setPsychologyTags] = useState<string[]>([]);
   const [newStrategyOpen, setNewStrategyOpen] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState("");
@@ -109,8 +120,14 @@ export default function NewEntry() {
       setDirection(tradeData.direction as "Long" | "Short");
       setEntryPrice(String(tradeData.entryPrice || ""));
       setQuantity(String(tradeData.quantity || ""));
+      setPnl(tradeData.pnl ? String(tradeData.pnl) : "");
+      setRiskAmount(tradeData.riskAmount ? String(tradeData.riskAmount) : "");
+      setExitCondition(tradeData.exitCondition || "");
+      setExitReason(tradeData.exitReason || "");
       setStopLoss(tradeData.stopLoss ? String(tradeData.stopLoss) : "");
       setTakeProfit(tradeData.takeProfit ? String(tradeData.takeProfit) : "");
+      setSwap(tradeData.swap ? String(tradeData.swap) : "");
+      setCommission(tradeData.commission ? String(tradeData.commission) : "");
       setStrategy(tradeData.strategy || "");
       
       // Extract psychology tags from notes if present
@@ -127,6 +144,16 @@ export default function NewEntry() {
       setSetup(tradeData.setup || "");
       setConviction(tradeData.conviction ? Number(tradeData.conviction) : 3);
       setMarketRegime(tradeData.marketRegime || "");
+      
+      // Load entry date and time
+      if (tradeData.entryDate) {
+        const date = new Date(tradeData.entryDate);
+        setEntryDate(date.toISOString().split('T')[0]); // YYYY-MM-DD
+        if (!tradeData.entryTime) {
+          setEntryTime(date.toTimeString().slice(0, 5)); // HH:MM
+        }
+      }
+      setEntryTime(tradeData.entryTime || "");
     }
   }, [tradeData]);
 
@@ -221,7 +248,7 @@ export default function NewEntry() {
     },
   });
 
-  const handleSaveTrade = () => {
+  const handleSaveTrade = (status: "Open" | "Closed" = "Closed") => {
     if (!validateForm()) {
       toast({
         title: "Validation Error",
@@ -236,6 +263,29 @@ export default function NewEntry() {
       ? `${notes}\n\nPsychology Tags: ${psychologyTags.join(", ")}`
       : notes;
 
+    // Calculate Risk % if we have riskAmount and accountId
+    let calculatedRiskPercent = null;
+    if (riskAmount && accountId && accounts) {
+      const account = accounts.find(a => a.id === accountId);
+      if (account && account.initialBalance) {
+        const balance = parseFloat(String(account.initialBalance));
+        const risk = parseFloat(riskAmount);
+        if (balance > 0) {
+          calculatedRiskPercent = (risk / balance) * 100;
+        }
+      }
+    }
+
+    // Combine entry date and time if provided
+    let entryDateTimeISO = null;
+    if (entryDate) {
+      if (entryTime) {
+        entryDateTimeISO = `${entryDate}T${entryTime}:00`;
+      } else {
+        entryDateTimeISO = `${entryDate}T12:00:00`; // Default to noon if no time specified
+      }
+    }
+
     const payload = {
       accountId: accountId || null,
       symbol: symbol.toUpperCase().trim(),
@@ -244,12 +294,21 @@ export default function NewEntry() {
       quantity: parseFloat(quantity),
       stopLoss: parseFloat(stopLoss),
       takeProfit: parseFloat(takeProfit),
-      status: "Open",
+      swap: swap ? parseFloat(swap) : null,
+      commission: commission ? parseFloat(commission) : null,
+      pnl: pnl ? parseFloat(pnl) : null,
+      riskAmount: riskAmount ? parseFloat(riskAmount) : null,
+      riskPercent: calculatedRiskPercent,
+      exitCondition: exitCondition || null,
+      exitReason: exitReason || null,
+      status: status,
       strategy: strategy || null,
       notes: notesWithPsychology || null,
       setup: setup || null,
       marketRegime: marketRegime || null,
       conviction: conviction || null,
+      entryTime: entryTime || null,
+      entryDate: entryDateTimeISO,
     };
 
     saveTradeMutation.mutate(payload);
@@ -296,25 +355,6 @@ export default function NewEntry() {
                     ? "Update your trade details and analysis."
                     : "Log a new trading entry with detailed analysis."}
                 </p>
-              </div>
-              <div className="flex gap-2 w-full md:w-auto">
-                <Button
-                  variant="outline"
-                  onClick={handleSaveTrade}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      {editingId ? "Update" : "Save Trade"}
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
           </header>
@@ -603,6 +643,129 @@ export default function NewEntry() {
                       </p>
                     )}
                   </div>
+
+                  {/* Swap */}
+                  <div className="space-y-2">
+                    <Label htmlFor="swap" className="flex items-center gap-2">
+                      <DollarSign className="h-3.5 w-3.5" />
+                      Swap (Optional)
+                    </Label>
+                    <Input
+                      id="swap"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      className="font-mono"
+                      value={swap}
+                      onChange={(e) => setSwap(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Overnight swap fees (can be negative)
+                    </p>
+                  </div>
+
+                  {/* Commission */}
+                  <div className="space-y-2">
+                    <Label htmlFor="commission" className="flex items-center gap-2">
+                      <DollarSign className="h-3.5 w-3.5" />
+                      Commission (Optional)
+                    </Label>
+                    <Input
+                      id="commission"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      className="font-mono"
+                      value={commission}
+                      onChange={(e) => setCommission(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Trading commission fees
+                    </p>
+                  </div>
+
+                  {/* P&L */}
+                  <div className="space-y-2">
+                    <Label htmlFor="pnl" className="flex items-center gap-2">
+                      <DollarSign className="h-3.5 w-3.5" />
+                      P&L (Profit/Loss)
+                    </Label>
+                    <Input
+                      id="pnl"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      className={cn(
+                        "font-mono font-semibold",
+                        pnl && parseFloat(pnl) > 0 && "text-green-600",
+                        pnl && parseFloat(pnl) < 0 && "text-red-600"
+                      )}
+                      value={pnl}
+                      onChange={(e) => setPnl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter + for profit, - for loss (from your broker)
+                    </p>
+                  </div>
+
+                  {/* Risk Amount */}
+                  <div className="space-y-2">
+                    <Label htmlFor="riskAmount" className="flex items-center gap-2">
+                      <Target className="h-3.5 w-3.5" />
+                      Risk Amount ($)
+                    </Label>
+                    <Input
+                      id="riskAmount"
+                      type="number"
+                      step="0.01"
+                      placeholder="15.00"
+                      className="font-mono font-semibold text-orange-600"
+                      value={riskAmount}
+                      onChange={(e) => setRiskAmount(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      How much $ did you risk on this trade? (e.g., $15)
+                    </p>
+                  </div>
+
+                  {/* Exit Condition */}
+                  <div className="space-y-2">
+                    <Label htmlFor="exitCondition" className="flex items-center gap-2">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Exit Condition
+                    </Label>
+                    <Select value={exitCondition} onValueChange={setExitCondition}>
+                      <SelectTrigger id="exitCondition">
+                        <SelectValue placeholder="How did the trade close?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="SL">Stop Loss (SL)</SelectItem>
+                        <SelectItem value="TP">Take Profit (TP)</SelectItem>
+                        <SelectItem value="Breakeven">Breakeven (BE)</SelectItem>
+                        <SelectItem value="Manual Close">Manual Close</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      How did this trade exit?
+                    </p>
+                  </div>
+
+                  {/* Exit Reason - Only show if Manual Close */}
+                  {exitCondition === "Manual Close" && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="exitReason" className="flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5" />
+                        Reason for Manual Close
+                      </Label>
+                      <Textarea
+                        id="exitReason"
+                        placeholder="Why did you close this trade manually? (e.g., news event, took partial profit, etc.)"
+                        className="min-h-[80px] resize-none"
+                        value={exitReason}
+                        onChange={(e) => setExitReason(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
@@ -679,7 +842,7 @@ export default function NewEntry() {
                         />
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="marketRegime">Market Regime</Label>
                           <Select value={marketRegime} onValueChange={setMarketRegime}>
@@ -695,37 +858,67 @@ export default function NewEntry() {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="entryDate" className="flex items-center gap-2">
+                            <Calendar className="h-3.5 w-3.5" />
+                            Entry Date
+                          </Label>
+                          <Input
+                            id="entryDate"
+                            type="date"
+                            value={entryDate}
+                            onChange={(e) => setEntryDate(e.target.value)}
+                            max={new Date().toISOString().split('T')[0]}
+                            className="font-mono"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            When did this trade happen? (Leave empty for today)
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="entryTime" className="flex items-center gap-2">
+                            <Clock className="h-3.5 w-3.5" />
+                            Entry Time (24h)
+                          </Label>
+                          <Input
+                            id="entryTime"
+                            type="time"
+                            value={entryTime}
+                            onChange={(e) => setEntryTime(e.target.value)}
+                            placeholder="14:30"
+                            className="font-mono"
+                            step="60"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            What time did you enter? (For session analysis)
+                          </p>
+                        </div>
                         
                         <div className="space-y-2">
-                          <Label htmlFor="conviction">Conviction Level (1-5)</Label>
+                          <Label htmlFor="conviction">Conviction Level</Label>
                           <div className="flex items-center gap-2">
-                            <Input
-                              id="conviction"
-                              type="number"
-                              min="1"
-                              max="5"
-                              step="0.5"
-                              value={conviction}
-                              onChange={(e) => setConviction(parseFloat(e.target.value) || 3)}
-                              className="w-20"
-                            />
-                            <div className="flex-1 flex gap-1">
-                              {[1, 2, 3, 4, 5].map((level) => (
-                                <button
-                                  key={level}
-                                  type="button"
-                                  onClick={() => setConviction(level)}
-                                  className={cn(
-                                    "flex-1 h-2 rounded transition-colors",
-                                    level <= conviction
-                                      ? "bg-primary"
-                                      : "bg-muted"
-                                  )}
-                                  aria-label={`Set conviction to ${level}`}
+                            {[1, 2, 3, 4, 5].map((level) => (
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() => setConviction(level)}
+                                className={cn(
+                                  "transition-all hover:scale-110",
+                                  level <= conviction
+                                    ? "text-primary"
+                                    : "text-muted-foreground hover:text-muted-foreground/70"
+                                )}
+                                aria-label={`Set conviction to ${level}`}
+                              >
+                                <Star 
+                                  className="h-6 w-6" 
+                                  fill={level <= conviction ? "currentColor" : "none"}
                                 />
-                              ))}
-                            </div>
-                            <span className="text-xs text-muted-foreground min-w-[60px] text-right">
+                              </button>
+                            ))}
+                            <span className="text-sm text-muted-foreground ml-2">
                               {conviction}/5
                             </span>
                           </div>
@@ -780,6 +973,52 @@ export default function NewEntry() {
                     </div>
                   </TabsContent>
                 </Tabs>
+              </CardContent>
+            </Card>
+
+            {/* Save Buttons at Bottom */}
+            <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm sticky bottom-4">
+              <CardContent className="p-4">
+                <div className="flex gap-3 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSaveTrade("Open")}
+                    disabled={isSaving}
+                    className="min-w-[140px]"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Save Draft
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => handleSaveTrade("Closed")}
+                    disabled={isSaving}
+                    className="min-w-[140px]"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Journal
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 text-right">
+                  Save Draft: Running trade (not hit TP/SL) • Save Journal: Closed trade (hit TP/SL/BE)
+                </p>
               </CardContent>
             </Card>
           </div>

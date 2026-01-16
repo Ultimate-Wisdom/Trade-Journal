@@ -8,12 +8,15 @@ import {
   TrendingUp, 
   Calendar,
   LogOut,
-  User
+  User,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +60,7 @@ const navigationGroups = [
 
 export function Sidebar() {
   const [location] = useLocation();
+  const { isPrivacyMode, togglePrivacyMode } = usePrivacyMode();
 
   // Fetch user data
   const { data: user } = useQuery<{ id: string; username: string }>({
@@ -87,7 +91,7 @@ export function Sidebar() {
   return (
     <div className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       {/* Header with Logo */}
-      <div className="flex h-16 items-center border-b border-sidebar-border px-6">
+      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
         <Link href="/" className="flex items-center gap-2.5 group">
           {/* Logo Image - will show when logoImage is defined above */}
           {typeof logoImage !== "undefined" ? (
@@ -111,6 +115,20 @@ export function Sidebar() {
             </span>
           </div>
         </Link>
+        {/* Privacy Mode Toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          onClick={togglePrivacyMode}
+          title={isPrivacyMode ? "Show values" : "Hide values"}
+        >
+          {isPrivacyMode ? (
+            <EyeOff className="h-5 w-5" />
+          ) : (
+            <Eye className="h-5 w-5" />
+          )}
+        </Button>
       </div>
       
       {/* Navigation */}

@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Trade } from "@/lib/mockData";
 import { useQuery } from "@tanstack/react-query";
-import { Trade as DBTrade } from "@shared/schema";
+import { Trade as DBTrade, Account } from "@shared/schema";
 import { ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 
 interface DayData {
   date: string;
@@ -20,22 +21,70 @@ interface DayData {
 interface FilterState {
   symbol: string;
   side: "all" | "Long" | "Short";
+  accountId: string; // "all" or specific account ID
   month: string;
 }
 
 export default function PNLCalendarDashboard() {
+  const { maskValue } = usePrivacyMode();
+
   // Fetch real trades from API
   const { data: dbTrades } = useQuery<DBTrade[]>({
     queryKey: ["/api/trades"],
   });
 
-  // Transform database trades to Trade format for calendar
-  const journalTrades = useMemo<Trade[]>(() => {
+  // Fetch accounts
+  const { data: accounts } = useQuery<Account[]>({
+    queryKey: ["/api/accounts"],
+  });
+
+  // Get current month as default
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  // Get unique symbols from all trades
+  const uniqueSymbols = useMemo(() => {
     if (!dbTrades) return [];
-    return dbTrades.map((t) => ({
+    return Array.from(new Set(dbTrades.map((t) => t.symbol).filter(Boolean))).sort();
+  }, [dbTrades]);
+
+  const [filters, setFilters] = useState<FilterState>(() => ({ 
+    symbol: "", 
+    side: "all",
+    accountId: "all",
+    month: (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    })()
+  }));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const filteredTrades = useMemo(() => {
+    if (!dbTrades) return [];
+    return dbTrades.filter((trade) => {
+      // Apply account filter
+      if (filters.accountId !== "all" && trade.accountId !== filters.accountId) return false;
+      
+      // Apply symbol filter
+      if (filters.symbol && trade.symbol !== filters.symbol) return false;
+      
+      // Apply side filter
+      if (filters.side !== "all" && trade.direction !== filters.side) return false;
+      
+      // Apply month filter
+      const tradeDate = trade.entryDate || trade.createdAt;
+      if (!tradeDate) return false;
+      const tradeDateStr = new Date(tradeDate).toISOString();
+      const tradeMonth = tradeDateStr.substring(0, 7);
+      if (tradeMonth !== filters.month) return false;
+      
+      return true;
+    }).map((t) => ({
       id: String(t.id),
       pair: t.symbol || "UNKNOWN",
-      type: "Forex" as const, // Default type, adjust as needed
+      type: "Forex" as const,
       direction: t.direction as "Long" | "Short",
       entryPrice: Number(t.entryPrice) || 0,
       exitPrice: t.exitPrice ? Number(t.exitPrice) : undefined,
@@ -44,26 +93,10 @@ export default function PNLCalendarDashboard() {
       quantity: Number(t.quantity) || 0,
       pnl: t.pnl ? Number(t.pnl) : undefined,
       status: t.status as "Open" | "Closed" | "Pending",
-      date: t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      date: t.entryDate ? new Date(t.entryDate).toISOString().split("T")[0] : t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       strategy: t.strategy || "Unknown",
     }));
-  }, [dbTrades]);
-
-  const [filters, setFilters] = useState<FilterState>({ symbol: "", side: "all", month: "2025-12" });
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  const filteredTrades = useMemo(() => {
-    return journalTrades.filter((trade) => {
-      if (filters.symbol && trade.pair !== filters.symbol) return false;
-      if (filters.side !== "all" && trade.direction !== filters.side) return false;
-      const [year, month] = filters.month.split("-");
-      const tradeMonth = trade.date.substring(0, 7);
-      if (tradeMonth !== filters.month) return false;
-      return true;
-    });
-  }, [journalTrades, filters]);
-
-  const uniqueSymbols = Array.from(new Set(journalTrades.map((t) => t.pair))).sort();
+  }, [dbTrades, filters]);
 
   const calendarData = useMemo(() => {
     const [year, month] = filters.month.split("-");
@@ -190,7 +223,7 @@ export default function PNLCalendarDashboard() {
           </header>
 
           <div className="grid gap-4 md:grid-cols-4 mb-8">
-            <div className="md:col-span-2">
+            <div>
               <label className="text-sm font-medium mb-2 block">Symbol</label>
               <Input
                 placeholder="All symbols"
@@ -216,6 +249,21 @@ export default function PNLCalendarDashboard() {
                 <option value="Short">Short</option>
               </select>
             </div>
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium mb-2 block">Account</label>
+              <select
+                className="w-full px-3 py-2 rounded-md border bg-background"
+                value={filters.accountId}
+                onChange={(e) => setFilters({ ...filters, accountId: e.target.value })}
+              >
+                <option value="all">All Accounts</option>
+                {accounts?.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm mb-6">
@@ -232,8 +280,8 @@ export default function PNLCalendarDashboard() {
                 </Button>
               </div>
               <div className="text-right">
-                <p className="text-xl font-bold text-profit">
-                  ${monthlyStats.totalPNL.toLocaleString()}
+                <p className={`text-xl font-bold ${monthlyStats.totalPNL >= 0 ? "text-profit" : "text-destructive"}`}>
+                  ${maskValue(monthlyStats.totalPNL)}
                 </p>
                 <p className="text-xs text-muted-foreground leading-tight">
                   {monthlyStats.totalTrades} trades • {monthlyStats.totalWins}W {monthlyStats.totalLosses}L
@@ -278,7 +326,9 @@ export default function PNLCalendarDashboard() {
                                   day.pnl > 0 ? "text-profit" : "text-destructive"
                                 }`}
                               >
-                                ${Math.abs(day.pnl / 100).toFixed(1)}k
+                                {maskValue(Math.abs(day.pnl)).includes("****") 
+                                  ? "$****" 
+                                  : `$${Math.abs(day.pnl).toFixed(0)}`}
                               </div>
                               <div className="text-muted-foreground leading-none">{day.wins}W{day.losses}L</div>
                             </>
@@ -307,7 +357,7 @@ export default function PNLCalendarDashboard() {
                             <span className="text-muted-foreground">{trade.direction === "Long" ? "↑" : "↓"}</span>
                           </div>
                           <span className={`font-mono font-bold ${(trade.pnl || 0) > 0 ? "text-profit" : "text-destructive"}`}>
-                            {(trade.pnl || 0) > 0 ? "+" : ""}${trade.pnl || 0}
+                            {(trade.pnl || 0) > 0 ? "+" : ""}${maskValue(trade.pnl || 0)}
                           </span>
                         </div>
                       ))}
@@ -341,7 +391,7 @@ export default function PNLCalendarDashboard() {
               </CardHeader>
               <CardContent>
                 <p className={`text-3xl font-bold ${monthlyStats.totalPNL >= 0 ? "text-profit" : "text-destructive"}`}>
-                  ${monthlyStats.totalTrades > 0 ? (monthlyStats.totalPNL / monthlyStats.totalTrades).toFixed(0) : 0}
+                  ${monthlyStats.totalTrades > 0 ? maskValue(Math.round(monthlyStats.totalPNL / monthlyStats.totalTrades)) : maskValue(0)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
                   {monthlyStats.totalTrades} trades
@@ -355,11 +405,12 @@ export default function PNLCalendarDashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-profit">
-                  {calendarData
-                    .filter((d) => d.pnl > 0)
-                    .reduce((max, curr) => (curr.pnl > max.pnl ? curr : max), { pnl: 0, dayNum: 0 }).dayNum === 0
-                    ? "—"
-                    : `$${Math.max(...calendarData.filter((d) => d.pnl > 0).map((d) => d.pnl || 0)).toLocaleString()}`}
+                  {(() => {
+                    const positiveDays = calendarData.filter((d) => d.pnl > 0);
+                    if (positiveDays.length === 0) return "—";
+                    const maxPnl = Math.max(...positiveDays.map((d) => d.pnl || 0));
+                    return `$${maskValue(maxPnl)}`;
+                  })()}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">Peak daily P&L</p>
               </CardContent>
@@ -377,7 +428,7 @@ export default function PNLCalendarDashboard() {
                     <div key={idx} className="p-3 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
                       <p className="text-xs font-semibold text-muted-foreground mb-2">Week {idx + 1}</p>
                       <p className={`text-lg font-bold font-mono ${week.pnl > 0 ? "text-profit" : "text-destructive"}`}>
-                        ${week.pnl.toLocaleString()}
+                        ${maskValue(week.pnl)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">{week.wins}W / {week.trades}T</p>
                     </div>

@@ -6,9 +6,17 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 
 export default defineConfig({
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: [],
+  },
   plugins: [
     react(),
-    runtimeErrorOverlay(),
+    // Disabled runtime error overlay - it causes false positives during React initialization
+    // Errors are still visible in browser console and ErrorBoundary catches React errors
+    // Uncomment the line below to re-enable if needed:
+    // runtimeErrorOverlay(),
     tailwindcss(),
     metaImagesPlugin(),
     ...(process.env.NODE_ENV !== "production" &&

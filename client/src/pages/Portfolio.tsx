@@ -22,8 +22,11 @@ import { DollarSign, TrendingUp, Coins, Plus, Trash2, History } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
+import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 
 export default function Portfolio() {
+  const { maskValue, isPrivacyMode } = usePrivacyMode();
+  
   // Fetch real accounts from API
   const { data: accounts } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
@@ -191,20 +194,20 @@ export default function Portfolio() {
           <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-3 mb-6 md:mb-8">
             <StatsCard 
               title="Total Net Worth" 
-              value={`$${(totalNetWorth / 1000).toFixed(1)}k`} 
+              value={`$${maskValue(totalNetWorth / 1000)}${isPrivacyMode ? "" : "k"}`} 
               change={`+${changePercent.toFixed(1)}%`} 
               trend="up" 
               icon={DollarSign} 
             />
             <StatsCard 
               title="Liquid Cash (Accounts)" 
-              value={`$${(liquidCash / 1000).toFixed(1)}k`} 
+              value={`$${maskValue(liquidCash / 1000)}${isPrivacyMode ? "" : "k"}`} 
               trend="neutral"
               icon={TrendingUp} 
             />
             <StatsCard 
               title="Digital Assets" 
-              value={`$${(digitalAssets / 1000).toFixed(1)}k`} 
+              value={`$${maskValue(digitalAssets / 1000)}${isPrivacyMode ? "" : "k"}`} 
               trend="neutral"
               icon={Coins} 
             />
@@ -234,7 +237,10 @@ export default function Portfolio() {
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
+                        <Tooltip formatter={(value) => {
+                          const numValue = Array.isArray(value) ? value[0] : value;
+                          return `$${maskValue(numValue)}`;
+                        }} />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
@@ -261,7 +267,7 @@ export default function Portfolio() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-bold">${asset.value.toLocaleString()}</p>
+                          <p className="text-sm font-bold">${maskValue(asset.value)}</p>
                           <p className="text-xs text-muted-foreground">
                             {((asset.value / pieData.reduce((sum, d) => sum + d.value, 0)) * 100).toFixed(1)}%
                           </p>
@@ -292,7 +298,7 @@ export default function Portfolio() {
                         </div>
                         <div className="text-right">
                           <div className="font-mono font-bold text-sm md:text-base">
-                            ${Number(account.initialBalance || 0).toLocaleString()}
+                            ${maskValue(account.initialBalance)}
                           </div>
                           <Badge variant="outline" className="text-xs mt-2">
                             {account.type}
@@ -331,7 +337,7 @@ export default function Portfolio() {
                           <TableRow key={asset.id} className="group cursor-pointer hover:bg-muted/50">
                             <TableCell className="font-bold font-mono text-primary">{asset.symbol}</TableCell>
                             <TableCell className="text-right font-mono text-muted-foreground">{asset.amount}</TableCell>
-                            <TableCell className="text-right font-mono font-bold">${asset.value.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-mono font-bold">${maskValue(asset.value)}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{asset.location}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={cn(
@@ -368,7 +374,7 @@ export default function Portfolio() {
                                   <div className="grid gap-4 py-4">
                                     <div className="p-3 rounded-lg bg-sidebar-accent/20 border border-sidebar-border">
                                       <p className="text-xs text-muted-foreground">Amount: {asset.amount}</p>
-                                      <p className="text-sm font-bold">Value: ${asset.value.toLocaleString()}</p>
+                                      <p className="text-sm font-bold">Value: ${maskValue(asset.value)}</p>
                                     </div>
                                     <div className="grid gap-2">
                                       <Label htmlFor="reason" className="text-sm">Reason for Removal</Label>
@@ -417,7 +423,7 @@ export default function Portfolio() {
                       <div key={asset.id} className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <p className="font-semibold text-sm">{asset.symbol} - ${asset.value.toLocaleString()}</p>
+                            <p className="font-semibold text-sm">{asset.symbol} - ${maskValue(asset.value)}</p>
                             <p className="text-xs text-muted-foreground mt-1">Removed: {asset.removedDate}</p>
                             <p className="text-xs text-muted-foreground mt-1">Location: {asset.location}</p>
                             <p className="text-sm text-destructive mt-2 font-medium">Reason: {asset.removalReason}</p>

@@ -17,14 +17,14 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="OPES - Trading Journal by Fhynk Capital" />
     <meta property="og:description" content="Professional trading journal and backtest tracker. Separate live trades and backtests, auto-calculate risk metrics, track your trading accounts and portfolio." />
-    <meta property="og:image" content="/favicon.png" />
+    <meta property="og:image" content="/icon-512.png" />
     <meta property="og:site_name" content="OPES" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="OPES - Trading Journal by Fhynk Capital" />
     <meta name="twitter:description" content="Professional trading journal and backtest tracker. Separate live trades and backtests, auto-calculate risk metrics, track your trading accounts and portfolio." />
-    <meta name="twitter:image" content="/favicon.png" />
+    <meta name="twitter:image" content="/icon-512.png" />
 
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#3b82f6" />
@@ -35,8 +35,9 @@
     <meta name="application-name" content="OPES" />
     
     <!-- Favicons -->
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Preconnect for Performance -->
@@ -78,35 +79,29 @@
       </div>
     </div>
     <script>
-      // Register service worker for PWA
+      // Unregister any existing service workers to prevent caching issues
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('Service Worker registered:', registration.scope);
-              // Check for updates
-              registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing;
-                if (newWorker) {
-                  newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                      // New version available
-                      console.log('New version available');
-                      // Optionally show update notification
-                    }
-                  });
-                }
-              });
-            })
-            .catch((error) => {
-              console.log('Service Worker registration failed:', error);
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister().then((success) => {
+              if (success) {
+                console.log('Service Worker unregistered successfully');
+              }
             });
+          }
         });
-
-        // Listen for service worker updates
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
-        });
+        // Clear all caches
+        if ('caches' in window) {
+          caches.keys().then((cacheNames) => {
+            return Promise.all(
+              cacheNames.map((cacheName) => {
+                return caches.delete(cacheName);
+              })
+            );
+          }).then(() => {
+            console.log('All caches cleared');
+          });
+        }
       }
 
       // Prevent zoom on double tap (iOS)

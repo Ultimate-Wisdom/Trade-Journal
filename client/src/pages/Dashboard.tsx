@@ -5,6 +5,12 @@ import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
 import { PNLCalendar } from "@/components/dashboard/PNLCalendar";
 import { MostProfitableDay } from "@/components/dashboard/MostProfitableDay";
 import { TradeTable } from "@/components/journal/TradeTable";
+import { AccountTree } from "@/components/AccountTree";
+import { SessionAnalysis } from "@/components/analytics/SessionAnalysis";
+import { AdvancedStatistics } from "@/components/analytics/AdvancedStatistics";
+import { PerformanceBenchmark } from "@/components/analytics/PerformanceBenchmark";
+import { CorrelationAnalysis } from "@/components/analytics/CorrelationAnalysis";
+import { MultitimeframeAnalysis } from "@/components/analytics/MultitimeframeAnalysis";
 import {
   Activity,
   DollarSign,
@@ -12,17 +18,23 @@ import {
   BarChart3,
   Briefcase,
   Loader2,
+  Plus,
 } from "lucide-react";
 import generatedImage from "@assets/generated_images/abstract_financial_data_visualization_dark_mode.png";
 
 import { useQuery } from "@tanstack/react-query";
 import { AddAccountDialog } from "@/components/add-account-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Account, Trade as DBTrade } from "@shared/schema";
 import { Trade } from "@/lib/mockData";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 
 export default function Dashboard() {
+  const { maskValue } = usePrivacyMode();
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  
   // Fetch real accounts and trades
   const { data: accounts, isLoading: isLoadingAccounts } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
@@ -34,10 +46,17 @@ export default function Dashboard() {
 
   const isLoading = isLoadingAccounts || isLoadingTrades;
 
+  // Filter trades by selected account
+  const filteredTrades = useMemo(() => {
+    if (!dbTrades) return [];
+    if (!selectedAccountId) return dbTrades; // Show all trades if no account selected
+    return dbTrades.filter((t) => t.accountId === selectedAccountId);
+  }, [dbTrades, selectedAccountId]);
+
   // Transform database trades to match the expected Trade interface for dashboard components
   const trades = useMemo(() => {
-    if (!dbTrades) return [];
-    return dbTrades.map((t) => ({
+    if (!filteredTrades) return [];
+    return filteredTrades.map((t) => ({
       id: String(t.id),
       pair: t.symbol || "UNKNOWN",
       type: "Forex" as const, // Default type, can be enhanced later
@@ -58,7 +77,7 @@ export default function Dashboard() {
       conviction: t.conviction ? Number(t.conviction) : undefined,
       marketRegime: t.marketRegime || undefined,
     })) as Trade[];
-  }, [dbTrades]);
+  }, [filteredTrades]);
 
   // Calculate real stats from trades
   const stats = useMemo(() => {
@@ -113,9 +132,16 @@ export default function Dashboard() {
     };
   }, [trades]);
 
-  // Calculate total capital from accounts
-  const totalCapital =
-    accounts?.reduce((sum, acc) => sum + Number(acc.initialBalance || 0), 0) || 0;
+  // Calculate total capital from selected account or all accounts
+  const totalCapital = useMemo(() => {
+    if (selectedAccountId) {
+      const account = accounts?.find((a) => a.id === selectedAccountId);
+      return account ? Number(account.initialBalance || 0) : 0;
+    }
+    return accounts?.reduce((sum, acc) => sum + Number(acc.initialBalance || 0), 0) || 0;
+  }, [accounts, selectedAccountId]);
+
+  const selectedAccount = accounts?.find((a) => a.id === selectedAccountId);
 
   if (isLoading) {
     return (
@@ -139,82 +165,64 @@ export default function Dashboard() {
                 Dashboard
               </h1>
               <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                Overview of your trading performance.
+                {selectedAccount
+                  ? `Performance for ${selectedAccount.name}`
+                  : "Overview of your trading performance."}
               </p>
             </div>
 
             <div className="flex items-center gap-4">
               <div className="hidden md:block text-right">
                 <p className="text-xs text-muted-foreground font-mono">
-                  TOTAL CAPITAL
+                  {selectedAccount ? "ACCOUNT BALANCE" : "TOTAL CAPITAL"}
                 </p>
                 <p className="text-lg font-bold text-primary">
-                  ${totalCapital.toLocaleString()}
+                  ${maskValue(totalCapital)}
                 </p>
               </div>
               <AddAccountDialog />
             </div>
           </header>
 
-          {/* Accounts Section */}
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-primary" />
-              Your Accounts
-            </h2>
+          {/* Account Selector and Tree */}
+          <div className="mb-8 grid gap-6 md:grid-cols-3">
+            <Card className="md:col-span-1 border-sidebar-border bg-card/50 backdrop-blur-sm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-primary" />
+                    Accounts
+                  </CardTitle>
+                  <AddAccountDialog
+                    trigger={
+                      <Button variant="outline" size="icon" className="h-8 w-8 border-primary/20 hover:border-primary/40 hover:bg-primary/10">
+                        <Plus className="h-4 w-4 text-primary" />
+                      </Button>
+                    }
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* Account Tree */}
+                {accounts && accounts.length > 0 ? (
+                  <AccountTree
+                    accounts={accounts}
+                    selectedAccountId={selectedAccountId}
+                    onSelectAccount={setSelectedAccountId}
+                  />
+                ) : (
+                  <div className="p-4 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                    No accounts found. Add one to get started.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-            {accounts?.length === 0 ? (
-              <div className="border border-dashed rounded-lg p-6 text-center bg-card/30">
-                <p className="text-sm text-muted-foreground mb-2">
-                  No trading accounts linked yet.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Click "Add Account" above to start.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {accounts?.map((account) => (
-                  <Card
-                    key={account.id}
-                    className="bg-card/50 backdrop-blur-sm hover:border-primary/50 transition-colors cursor-pointer border-l-4 border-l-primary"
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium truncate">
-                        {account.name}
-                      </CardTitle>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
-                        ${
-                          account.type === "Prop"
-                            ? "bg-blue-500/10 text-blue-500"
-                            : account.type === "Live"
-                              ? "bg-green-500/10 text-green-500"
-                              : "bg-gray-500/10 text-gray-500"
-                        }`}
-                      >
-                        {account.type}
-                      </span>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        ${Number(account.initialBalance).toLocaleString()}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Initial Balance
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Stats Section */}
-          <div className="grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-6 md:mb-8">
+            {/* Stats Section */}
+            <div className="md:col-span-2 grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-6 md:mb-8">
             <StatsCard
               title="Total P&L"
-              value={`$${stats.totalPnl.toFixed(2)}`}
+              value={`$${maskValue(stats.totalPnl)}`}
               change={stats.totalPnl === 0 ? "0.0%" : "---"}
               trend={stats.pnlTrend as "up" | "down" | "neutral"}
               icon={DollarSign}
@@ -240,6 +248,7 @@ export default function Dashboard() {
               trend="neutral"
               icon={TrendingUp}
             />
+            </div>
           </div>
 
           {/* Charts Section */}
@@ -271,13 +280,22 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <StrategyInsights trades={journalTrades} />
+          <div className="grid gap-6 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-6 md:mt-8">
+            <StrategyInsights trades={journalTrades} />
+            <AdvancedStatistics trades={filteredTrades || []} />
+            <CorrelationAnalysis trades={filteredTrades || []} />
+          </div>
 
-          <div className="grid gap-6 md:gap-4 md:grid-cols-3 mt-6 md:mt-8">
-            <div className="md:col-span-2">
+          <div className="grid gap-6 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-6 md:mt-8">
+            <div className="lg:col-span-2 space-y-4">
               <PNLCalendar trades={journalTrades} />
+              <MultitimeframeAnalysis trades={filteredTrades || []} />
             </div>
-            <MostProfitableDay trades={journalTrades} />
+            <div className="space-y-4">
+              <MostProfitableDay trades={journalTrades} />
+              <PerformanceBenchmark trades={filteredTrades || []} />
+              <SessionAnalysis trades={filteredTrades || []} />
+            </div>
           </div>
 
           <div className="space-y-4 mt-6 md:mt-8">
@@ -286,8 +304,8 @@ export default function Dashboard() {
             </h3>
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
               <TradeTable 
-                trades={(dbTrades || []).slice(0, 5)} 
-                showAccount={true} 
+                trades={(filteredTrades || []).slice(0, 5)} 
+                showAccount={!selectedAccountId} 
                 showRRR={true} 
                 showRisk={true} 
               />

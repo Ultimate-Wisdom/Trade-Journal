@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod"; // Import generic Zod
+import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,52 +29,106 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import { Plus, Pencil } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Account } from "@shared/schema";
+import { cn } from "@/lib/utils";
 
-// 1. FIX: Create a simple, explicit schema for the form
-// This avoids strict type conflicts with the Database schema
+// Color presets
+const COLOR_PRESETS = [
+  { name: "Blue", value: "#2563eb" },
+  { name: "Green", value: "#10b981" },
+  { name: "Red", value: "#ef4444" },
+  { name: "Purple", value: "#a855f7" },
+  { name: "Orange", value: "#f97316" },
+  { name: "Teal", value: "#14b8a6" },
+];
+
+// Currency conversion rate (1 USD = 4.45 MYR)
+const MYR_TO_USD_RATE = 4.45;
+
 const formSchema = z.object({
   name: z.string().min(1, "Account name is required"),
   type: z.enum(["Prop", "Live", "Demo"]),
   initialBalance: z.string().min(1, "Initial balance is required"),
+  currency: z.enum(["USD", "MYR"]),
+  color: z.string().min(1, "Color is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddAccountDialog() {
+interface AddAccountDialogProps {
+  account?: Account; // If provided, we're in edit mode
+  trigger?: React.ReactNode; // Custom trigger button
+}
+
+export function AddAccountDialog({ account, trigger }: AddAccountDialogProps) {
   const [open, setOpen] = useState(false);
+  const [conversionNote, setConversionNote] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isEditMode = !!account;
 
-  // 2. Use the simple schema
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      type: "Prop",
-      initialBalance: "100000",
+      name: account?.name || "",
+      type: (account?.type as "Prop" | "Live" | "Demo") || "Prop",
+      initialBalance: account?.initialBalance || "100000",
+      currency: "USD",
+      color: account?.color || "#2563eb",
     },
   });
 
+  const watchedCurrency = form.watch("currency");
+  const watchedBalance = form.watch("initialBalance");
+
+  // Update conversion note when currency or balance changes
+  useEffect(() => {
+    if (watchedCurrency === "MYR" && watchedBalance) {
+      const myrAmount = parseFloat(watchedBalance) || 0;
+      const usdAmount = myrAmount / MYR_TO_USD_RATE;
+      setConversionNote(
+        `≈ $${usdAmount.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} USD`
+      );
+    } else {
+      setConversionNote("");
+    }
+  }, [watchedCurrency, watchedBalance]);
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      // 3. Debug Log: See exactly what we are sending
-      console.log("Sending Payload:", values);
+      // Convert MYR to USD if needed
+      let balanceInUSD = parseFloat(values.initialBalance);
+      if (values.currency === "MYR") {
+        balanceInUSD = balanceInUSD / MYR_TO_USD_RATE;
+      }
 
       const payload = {
         name: values.name,
         type: values.type,
-        initialBalance: values.initialBalance, // Already a string, safe to send
+        initialBalance: balanceInUSD.toFixed(2),
+        color: values.color,
       };
 
-      return apiRequest("POST", "/api/accounts", payload);
+      if (isEditMode && account) {
+        // Update existing account
+        return apiRequest("PATCH", `/api/accounts/${account.id}`, payload);
+      } else {
+        // Create new account
+        return apiRequest("POST", "/api/accounts", payload);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
       toast({
         title: "Success",
-        description: "Account added successfully",
+        description: isEditMode
+          ? "Account updated successfully"
+          : "Account added successfully",
       });
       setOpen(false);
       form.reset();
@@ -82,7 +137,7 @@ export function AddAccountDialog() {
       console.error("Mutation Failed:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create account",
+        description: error.message || `Failed to ${isEditMode ? "update" : "create"} account`,
         variant: "destructive",
       });
     },
@@ -92,17 +147,23 @@ export function AddAccountDialog() {
     mutation.mutate(data);
   };
 
+  const defaultTrigger = (
+    <Button className="gap-2">
+      <Plus className="h-4 w-4" />
+      Add Account
+    </Button>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Account
-        </Button>
+        {trigger || defaultTrigger}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Trading Account</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? "Edit Trading Account" : "Add Trading Account"}
+          </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -130,6 +191,7 @@ export function AddAccountDialog() {
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -147,15 +209,86 @@ export function AddAccountDialog() {
               )}
             />
 
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Currency</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="MYR">MYR</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="initialBalance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Initial Balance</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="100000"
+                        {...field}
+                      />
+                    </FormControl>
+                    {conversionNote && (
+                      <FormDescription className="text-xs">
+                        {conversionNote}
+                      </FormDescription>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="initialBalance"
+              name="color"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Initial Balance</FormLabel>
+                  <FormLabel>Account Color</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="100000" {...field} />
+                    <div className="flex items-center gap-3">
+                      {COLOR_PRESETS.map((preset) => (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => field.onChange(preset.value)}
+                          className={cn(
+                            "w-10 h-10 rounded-full border-2 transition-all",
+                            field.value === preset.value
+                              ? "border-foreground scale-110"
+                              : "border-transparent hover:border-foreground/50"
+                          )}
+                          style={{ backgroundColor: preset.value }}
+                          aria-label={`Select ${preset.name} color`}
+                        />
+                      ))}
+                    </div>
                   </FormControl>
+                  <FormDescription className="text-xs">
+                    Choose a color to categorize this account
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -166,7 +299,13 @@ export function AddAccountDialog() {
               className="w-full"
               disabled={mutation.isPending}
             >
-              {mutation.isPending ? "Creating..." : "Create Account"}
+              {mutation.isPending
+                ? isEditMode
+                  ? "Updating..."
+                  : "Creating..."
+                : isEditMode
+                ? "Update Account"
+                : "Create Account"}
             </Button>
           </form>
         </Form>

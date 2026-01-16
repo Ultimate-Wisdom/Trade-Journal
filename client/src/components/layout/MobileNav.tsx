@@ -9,7 +9,9 @@ import {
   TrendingUp, 
   Calendar,
   LogOut,
-  User
+  User,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -18,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
+import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,6 +66,7 @@ const navigationGroups = [
 export function MobileNav() {
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
+  const { isPrivacyMode, togglePrivacyMode } = usePrivacyMode();
 
   // Fetch user data
   const { data: user } = useQuery<{ id: string; username: string }>({
@@ -246,8 +250,20 @@ export function MobileNav() {
         </div>
       </Link>
 
-      {/* Spacer for balance */}
-      <div className="w-10" />
+      {/* Privacy Mode Toggle */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9"
+        onClick={togglePrivacyMode}
+        title={isPrivacyMode ? "Show values" : "Hide values"}
+      >
+        {isPrivacyMode ? (
+          <EyeOff className="h-5 w-5" />
+        ) : (
+          <Eye className="h-5 w-5" />
+        )}
+      </Button>
     </div>
   );
 }

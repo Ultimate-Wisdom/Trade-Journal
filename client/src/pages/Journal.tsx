@@ -10,15 +10,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Filter, PlusCircle, Loader2 } from "lucide-react"; // FIXED TYPO HERE
+import { Search, Filter, PlusCircle, Loader2, Download, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { Account } from "@shared/types";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { ExportDialog } from "@/components/export/ExportDialog";
+import { BatchOperations } from "@/components/batch/BatchOperations";
+import { TradeComparison } from "@/components/comparison/TradeComparison";
 
 export default function Journal() {
   const [trades, setTrades] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
+  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "win" | "loss" | "breakeven">("all");
+  const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
+  const [compareTrades, setCompareTrades] = useState<string[]>([]);
+  const { toast } = useToast();
+
+  // Fetch accounts for export
+  const { data: accounts = [] } = useQuery<Account[]>({
+    queryKey: ["/api/accounts"],
+  });
 
   useEffect(() => {
     fetch("/api/trades")
@@ -50,14 +67,53 @@ export default function Journal() {
   }, []);
 
   // SAFE FILTERING:
-  // We check if t.pair exists before calling toLowerCase() to prevent runtime errors.
+  // Enhanced search across multiple fields (symbol, notes, psychology, mistakes, improvements, strategy)
   const filteredTrades = trades.filter((t: any) => {
+    const searchLower = search.toLowerCase();
+    
+    // Search across multiple fields
     const pairName = t.pair ? String(t.pair).toLowerCase() : "";
-    const matchesSearch = pairName.includes(search.toLowerCase());
+    const notes = t.notes ? String(t.notes).toLowerCase() : "";
+    const psychology = t.psychology ? String(t.psychology).toLowerCase() : "";
+    const mistakes = t.mistakes ? String(t.mistakes).toLowerCase() : "";
+    const improvements = t.improvements ? String(t.improvements).toLowerCase() : "";
+    const strategy = t.strategy ? String(t.strategy).toLowerCase() : "";
+    const setup = t.setup ? String(t.setup).toLowerCase() : "";
+    
+    const matchesSearch = 
+      pairName.includes(searchLower) ||
+      notes.includes(searchLower) ||
+      psychology.includes(searchLower) ||
+      mistakes.includes(searchLower) ||
+      improvements.includes(searchLower) ||
+      strategy.includes(searchLower) ||
+      setup.includes(searchLower);
+    
     const matchesStrategy =
       strategyFilter === "all" || t.strategy === strategyFilter;
-    return matchesSearch && matchesStrategy;
+    
+    // Outcome filter
+    const pnl = parseFloat(t.pnl || "0");
+    let matchesOutcome = true;
+    if (outcomeFilter === "win") {
+      matchesOutcome = pnl > 0;
+    } else if (outcomeFilter === "loss") {
+      matchesOutcome = pnl < 0;
+    } else if (outcomeFilter === "breakeven") {
+      matchesOutcome = pnl === 0;
+    }
+    
+    return matchesSearch && matchesStrategy && matchesOutcome;
   });
+
+  // Calculate filter counts
+  const filterCounts = {
+    all: trades.length,
+    win: trades.filter((t: any) => parseFloat(t.pnl || "0") > 0).length,
+    loss: trades.filter((t: any) => parseFloat(t.pnl || "0") < 0).length,
+    breakeven: trades.filter((t: any) => parseFloat(t.pnl || "0") === 0).length,
+  };
+
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
@@ -81,16 +137,108 @@ export default function Journal() {
             </Link>
           </header>
 
+          {/* Quick Filters */}
+          <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2">
+            <Button
+              variant={outcomeFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOutcomeFilter("all")}
+              className={cn(
+                "gap-2 h-9",
+                outcomeFilter === "all" && "bg-primary"
+              )}
+            >
+              All Trades
+              <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] justify-center">
+                {filterCounts.all}
+              </Badge>
+            </Button>
+            <Button
+              variant={outcomeFilter === "win" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOutcomeFilter("win")}
+              className={cn(
+                "gap-2 h-9",
+                outcomeFilter === "win"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "border-green-600/30 text-green-600 hover:bg-green-600/10"
+              )}
+            >
+              <TrendingUp className="h-4 w-4" />
+              Wins
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "ml-1 h-5 min-w-[20px] justify-center",
+                  outcomeFilter === "win" ? "bg-green-700" : "bg-green-600/20"
+                )}
+              >
+                {filterCounts.win}
+              </Badge>
+            </Button>
+            <Button
+              variant={outcomeFilter === "loss" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOutcomeFilter("loss")}
+              className={cn(
+                "gap-2 h-9",
+                outcomeFilter === "loss"
+                  ? "bg-red-600 hover:bg-red-700 text-white"
+                  : "border-red-600/30 text-red-600 hover:bg-red-600/10"
+              )}
+            >
+              <TrendingDown className="h-4 w-4" />
+              Losses
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "ml-1 h-5 min-w-[20px] justify-center",
+                  outcomeFilter === "loss" ? "bg-red-700" : "bg-red-600/20"
+                )}
+              >
+                {filterCounts.loss}
+              </Badge>
+            </Button>
+            <Button
+              variant={outcomeFilter === "breakeven" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOutcomeFilter("breakeven")}
+              className={cn(
+                "gap-2 h-9",
+                outcomeFilter === "breakeven"
+                  ? "bg-gray-600 hover:bg-gray-700 text-white"
+                  : "border-gray-600/30 text-gray-600 hover:bg-gray-600/10"
+              )}
+            >
+              <Minus className="h-4 w-4" />
+              Breakeven
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "ml-1 h-5 min-w-[20px] justify-center",
+                  outcomeFilter === "breakeven" ? "bg-gray-700" : "bg-gray-600/20"
+                )}
+              >
+                {filterCounts.breakeven}
+              </Badge>
+            </Button>
+          </div>
+
           <div className="mb-6 flex flex-col md:flex-row items-stretch md:items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search symbol..."
+                placeholder="Search trades (symbol, notes, psychology, strategy...)..."
                 className="pl-8 bg-card/50 h-10"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search && (
+                <p className="text-xs text-muted-foreground mt-1 ml-1">
+                  Searching across: symbol, notes, psychology, mistakes, improvements, strategy, setup
+                </p>
+              )}
             </div>
             <Select value={strategyFilter} onValueChange={setStrategyFilter}>
               <SelectTrigger className="w-full md:w-[180px] bg-card/50 h-10">
@@ -113,10 +261,32 @@ export default function Journal() {
               <Filter className="h-4 w-4" />
               <span className="hidden sm:inline">Filters</span>
             </Button>
-            <Button size="sm" className="h-10">
-              Export
-            </Button>
+            <ExportDialog 
+              trades={filteredTrades}
+              accounts={accounts}
+              trigger={
+                <Button size="sm" className="h-10 gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+              }
+            />
           </div>
+
+          {/* Trade Comparison */}
+          <TradeComparison
+            trades={trades}
+            selectedTrades={compareTrades}
+            onRemoveTrade={(id) => setCompareTrades(prev => prev.filter(t => t !== id))}
+            onClear={() => setCompareTrades([])}
+          />
+
+          {/* Batch Operations */}
+          <BatchOperations
+            trades={filteredTrades}
+            selectedTrades={selectedTrades}
+            onSelectionChange={setSelectedTrades}
+          />
 
           <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
             {isLoading ? (

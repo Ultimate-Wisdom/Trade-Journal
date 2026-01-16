@@ -13,25 +13,39 @@ import {
   Database,
   LogOut,
   Save,
-  TrendingUp,
-  DollarSign
+  Download,
+  Upload,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { downloadBackup, parseBackupFile, restoreBackup, type BackupData } from "@/lib/backupUtils";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { TagManager } from "@/components/tags/TagManager";
+import { TemplateManager } from "@/components/templates/TemplateManager";
+import { StrategyBuilder } from "@/components/strategy/StrategyBuilder";
 
 export default function Settings() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const { data: user } = useQuery<{ id: string; username: string }>({
     queryKey: ["/api/user"],
     retry: false,
-  });
-
-  const [tradingPreferences, setTradingPreferences] = useState({
-    defaultCurrency: "USD",
-    defaultRiskPercent: "1.0",
-    pricePrecision: "5",
-    autoCalculateRRR: true,
   });
 
   const [displayPreferences, setDisplayPreferences] = useState({
@@ -40,6 +54,17 @@ export default function Settings() {
     showAccountColumn: true,
     showRiskColumn: true,
   });
+
+  // Backup/Restore state
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [backupToRestore, setBackupToRestore] = useState<BackupData | null>(null);
+  const [restoreOptions, setRestoreOptions] = useState({
+    includeAccounts: true,
+    includeTrades: true,
+    includeBacktests: true,
+  });
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -59,6 +84,87 @@ export default function Settings() {
       title: "Settings Saved",
       description: "Your preferences have been updated.",
     });
+  };
+
+  // Backup handler
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      await downloadBackup();
+      toast({
+        title: "Backup Created",
+        description: "Your data has been exported successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Backup Failed",
+        description: error.message || "Failed to create backup",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  // Restore file selection handler
+  const handleRestoreFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const backup = await parseBackupFile(file);
+      setBackupToRestore(backup);
+      setShowRestoreDialog(true);
+    } catch (error: any) {
+      toast({
+        title: "Invalid Backup File",
+        description: error.message || "Failed to parse backup file",
+        variant: "destructive",
+      });
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Restore confirm handler
+  const handleRestoreConfirm = async () => {
+    if (!backupToRestore) return;
+    
+    setIsRestoring(true);
+    setShowRestoreDialog(false);
+    
+    try {
+      const result = await restoreBackup(backupToRestore, restoreOptions);
+      
+      if (result.success) {
+        toast({
+          title: "Restore Successful",
+          description: `Imported ${result.imported.accounts} accounts, ${result.imported.trades} trades, ${result.imported.backtests} backtests`,
+        });
+        
+        // Invalidate all queries to refresh data
+        queryClient.invalidateQueries();
+      } else {
+        toast({
+          title: "Restore Completed with Errors",
+          description: `Some items failed to import. Check console for details.`,
+          variant: "destructive",
+        });
+        console.error("Restore errors:", result.errors);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Restore Failed",
+        description: error.message || "Failed to restore data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRestoring(false);
+      setBackupToRestore(null);
+    }
   };
 
   return (
@@ -111,86 +217,6 @@ export default function Settings() {
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </Button>
-              </CardContent>
-            </Card>
-
-            {/* Trading Preferences */}
-            <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Trading Preferences
-                </CardTitle>
-                <CardDescription>
-                  Default settings for new trade entries.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="default-currency">Default Currency</Label>
-                  <Input
-                    id="default-currency"
-                    placeholder="USD"
-                    value={tradingPreferences.defaultCurrency}
-                    onChange={(e) =>
-                      setTradingPreferences({ ...tradingPreferences, defaultCurrency: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Default currency for trade entries and calculations
-                  </p>
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label htmlFor="default-risk">Default Risk Percentage</Label>
-                  <Input
-                    id="default-risk"
-                    type="number"
-                    step="0.1"
-                    placeholder="1.0"
-                    value={tradingPreferences.defaultRiskPercent}
-                    onChange={(e) =>
-                      setTradingPreferences({ ...tradingPreferences, defaultRiskPercent: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Default risk percentage per trade (e.g., 1.0 for 1%)
-                  </p>
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label htmlFor="price-precision">Price Decimal Precision</Label>
-                  <Input
-                    id="price-precision"
-                    type="number"
-                    min="2"
-                    max="8"
-                    placeholder="5"
-                    value={tradingPreferences.pricePrecision}
-                    onChange={(e) =>
-                      setTradingPreferences({ ...tradingPreferences, pricePrecision: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Number of decimal places for price display (2 for stocks, 5 for forex)
-                  </p>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="auto-rrr">Auto-calculate R:R Ratio</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Automatically calculate Risk:Reward ratio when entering prices
-                    </p>
-                  </div>
-                  <Switch
-                    id="auto-rrr"
-                    checked={tradingPreferences.autoCalculateRRR}
-                    onCheckedChange={(checked) =>
-                      setTradingPreferences({ ...tradingPreferences, autoCalculateRRR: checked })
-                    }
-                  />
-                </div>
               </CardContent>
             </Card>
 
@@ -270,30 +296,173 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            {/* Data & Privacy */}
+            {/* Data & Backup */}
             <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-primary" />
-                  Data & Privacy
+                  <Database className="h-5 w-5 text-primary" />
+                  Data Backup & Restore
                 </CardTitle>
                 <CardDescription>
-                  Manage your data and privacy settings.
+                  Create backups and restore your trading data.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {/* Backup Section */}
                 <div className="space-y-2">
-                  <Label>Data Export</Label>
+                  <Label>Create Backup</Label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Export all your trading data in JSON format
+                    Export all your trading data (accounts, trades, backtests) as a backup file
                   </p>
-                  <Button variant="outline" className="w-full md:w-auto">
-                    <Database className="h-4 w-4 mr-2" />
-                    Export Data
+                  <Button
+                    variant="outline"
+                    className="w-full md:w-auto"
+                    onClick={handleBackup}
+                    disabled={isBackingUp}
+                  >
+                    {isBackingUp ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating Backup...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Backup
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                <Separator />
+                
+                {/* Restore Section */}
+                <div className="space-y-2">
+                  <Label>Restore from Backup</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Import data from a previous backup file
+                  </p>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                    <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
+                    <p className="text-xs text-yellow-500">
+                      Restoring will add new data. Existing data won't be deleted.
+                    </p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreFileSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    className="w-full md:w-auto"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isRestoring}
+                  >
+                    {isRestoring ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Restoring...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Select Backup File
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Restore Confirmation Dialog */}
+            <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Restore from Backup</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You're about to restore data from a backup created on{" "}
+                    {backupToRestore?.exportDate
+                      ? new Date(backupToRestore.exportDate).toLocaleString()
+                      : "unknown date"}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                
+                {backupToRestore && (
+                  <div className="space-y-4 py-4">
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <p className="text-sm font-medium mb-2">Backup Contents:</p>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• {backupToRestore.metadata.totalAccounts} Accounts</li>
+                        <li>• {backupToRestore.metadata.totalTrades} Trades</li>
+                        <li>• {backupToRestore.metadata.totalBacktests} Backtests</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">Select what to import:</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="restore-accounts"
+                            checked={restoreOptions.includeAccounts}
+                            onCheckedChange={(checked) =>
+                              setRestoreOptions({ ...restoreOptions, includeAccounts: !!checked })
+                            }
+                          />
+                          <Label htmlFor="restore-accounts" className="text-sm cursor-pointer">
+                            Accounts ({backupToRestore.metadata.totalAccounts})
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="restore-trades"
+                            checked={restoreOptions.includeTrades}
+                            onCheckedChange={(checked) =>
+                              setRestoreOptions({ ...restoreOptions, includeTrades: !!checked })
+                            }
+                          />
+                          <Label htmlFor="restore-trades" className="text-sm cursor-pointer">
+                            Trades ({backupToRestore.metadata.totalTrades})
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="restore-backtests"
+                            checked={restoreOptions.includeBacktests}
+                            onCheckedChange={(checked) =>
+                              setRestoreOptions({ ...restoreOptions, includeBacktests: !!checked })
+                            }
+                          />
+                          <Label htmlFor="restore-backtests" className="text-sm cursor-pointer">
+                            Backtests ({backupToRestore.metadata.totalBacktests})
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleRestoreConfirm}>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Restore Data
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Tag Manager */}
+            <TagManager />
+
+            {/* Template Manager */}
+            <TemplateManager />
+
+            {/* Strategy Builder */}
+            <StrategyBuilder />
 
             {/* Save Button */}
             <div className="flex justify-end">

@@ -9,9 +9,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Trade } from "@shared/schema";
+import { Trade, Account } from "@shared/schema";
 import { Trash2, Edit2 } from "lucide-react";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 interface TradeTableProps {
   trades: Trade[];
@@ -51,6 +52,18 @@ export function TradeTable({
   showRRR,
   showRisk,
 }: TradeTableProps) {
+  // Fetch accounts for display names
+  const { data: accounts } = useQuery<Account[]>({
+    queryKey: ["/api/accounts"],
+  });
+
+  // Helper to get account name from ID
+  const getAccountName = (accountId: string | null) => {
+    if (!accountId || !accounts) return "—";
+    const account = accounts.find(a => a.id === accountId);
+    return account ? account.name : accountId.slice(0, 8);
+  };
+
   return (
     <div className="rounded-md border bg-card/50 backdrop-blur-sm">
       <Table>
@@ -63,8 +76,7 @@ export function TradeTable({
             <TableHead>Strategy</TableHead>
             {showRRR && <TableHead className="text-right">RRR</TableHead>}
             {showRisk && <TableHead className="text-right">Risk %</TableHead>}
-            <TableHead className="text-right">Entry</TableHead>
-            <TableHead className="text-right">Exit</TableHead>
+            <TableHead>Exit Condition</TableHead>
             <TableHead className="text-right">P&L</TableHead>
             <TableHead className="text-right">Status</TableHead>
             <TableHead className="w-16"></TableHead>
@@ -74,7 +86,7 @@ export function TradeTable({
           {trades.length === 0 ? (
             <TableRow>
               <TableCell 
-                colSpan={10 + (showAccount ? 1 : 0) + (showRRR ? 1 : 0) + (showRisk ? 1 : 0)} 
+                colSpan={9 + (showAccount ? 1 : 0) + (showRRR ? 1 : 0) + (showRisk ? 1 : 0)} 
                 className="text-center text-muted-foreground py-8"
               >
                 No trades yet. Create your first trade to get started.
@@ -84,7 +96,6 @@ export function TradeTable({
             trades.map((trade) => {
               // Convert strings to numbers for calculations
               const entry = Number(trade.entryPrice);
-              const exit = trade.exitPrice ? Number(trade.exitPrice) : undefined;
               const sl = trade.stopLoss ? Number(trade.stopLoss) : undefined;
               const tp = trade.takeProfit ? Number(trade.takeProfit) : undefined;
               const pnl = trade.pnl ? Number(trade.pnl) : undefined;
@@ -92,6 +103,49 @@ export function TradeTable({
 
               // Determine status from trade data
               const status = trade.status || "Open";
+              
+              // Determine exit condition
+              let exitCondition = trade.exitCondition || "—";
+              let exitConditionBadge = null;
+              
+              if (status === "Closed") {
+                if (trade.exitCondition) {
+                  exitCondition = trade.exitCondition;
+                } else {
+                  // Auto-determine based on P&L if not set
+                  if (pnl === undefined || pnl === null) {
+                    exitCondition = "—";
+                  } else if (pnl === 0) {
+                    exitCondition = "Breakeven";
+                  } else if (pnl < 0) {
+                    exitCondition = "SL";
+                  } else {
+                    exitCondition = "TP";
+                  }
+                }
+              } else {
+                exitCondition = "—";
+              }
+              
+              // Badge styling based on exit condition
+              if (exitCondition === "SL") {
+                exitConditionBadge = <Badge className="bg-destructive/20 text-destructive hover:bg-destructive/30 font-mono text-xs">SL</Badge>;
+              } else if (exitCondition === "TP") {
+                exitConditionBadge = <Badge className="bg-profit/20 text-profit hover:bg-profit/30 font-mono text-xs">TP</Badge>;
+              } else if (exitCondition === "Breakeven") {
+                exitConditionBadge = <Badge className="bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 font-mono text-xs">BE</Badge>;
+              } else if (exitCondition === "Manual Close") {
+                exitConditionBadge = (
+                  <Badge 
+                    className="bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 font-mono text-xs cursor-help" 
+                    title={trade.exitReason || "Manual close"}
+                  >
+                    Manual
+                  </Badge>
+                );
+              } else {
+                exitConditionBadge = <span className="text-muted-foreground text-xs">—</span>;
+              }
 
               return (
                 <TableRow
@@ -103,8 +157,8 @@ export function TradeTable({
                   </TableCell>
 
                   {showAccount && (
-                    <TableCell className="text-xs font-mono opacity-70">
-                      {trade.accountId ? trade.accountId.slice(0, 8) : "—"}
+                    <TableCell className="text-xs opacity-70">
+                      {getAccountName(trade.accountId)}
                     </TableCell>
                   )}
 
@@ -142,12 +196,8 @@ export function TradeTable({
                     </TableCell>
                   )}
 
-                  <TableCell className="text-right font-mono">
-                    ${entry.toFixed(2)}
-                  </TableCell>
-
-                  <TableCell className="text-right font-mono">
-                    {exit ? `$${exit.toFixed(2)}` : "—"}
+                  <TableCell>
+                    {exitConditionBadge}
                   </TableCell>
 
                   <TableCell

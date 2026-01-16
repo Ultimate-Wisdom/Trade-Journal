@@ -8,6 +8,7 @@
     "build": "tsx script/build.ts && cp server/table.sql dist/table.sql",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "test": "vitest",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
@@ -84,6 +85,7 @@
     "@replit/vite-plugin-dev-banner": "^0.1.1",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.4",
     "@tailwindcss/vite": "^4.1.14",
+    "@testing-library/react": "^16.3.1",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "4.17.21",
     "@types/express-session": "^1.18.2",
@@ -98,11 +100,13 @@
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.4",
     "esbuild": "^0.25.0",
+    "jsdom": "^27.4.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^7.1.9"
+    "vite": "^7.1.9",
+    "vitest": "^4.0.17"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
