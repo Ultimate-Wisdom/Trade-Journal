@@ -174,71 +174,71 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
 
   return (
     <Card className="border-sidebar-border bg-card/50">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm md:text-base flex items-center gap-2">
           <Trophy className="h-4 w-4 text-primary" />
           Advanced Statistics
         </CardTitle>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[0.65rem] md:text-xs text-muted-foreground">
           Based on {stats.totalTrades} closed trades
         </p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 md:space-y-4">
         {/* Key Metrics Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-xs text-muted-foreground mb-1">Expectancy</p>
-            <p className={`text-lg font-bold ${stats.expectancy >= 0 ? "text-green-500" : "text-red-500"}`}>
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
+          <div className="p-2 md:p-3 rounded-lg bg-muted/30">
+            <p className="text-[0.65rem] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Expectancy</p>
+            <p className={`text-sm md:text-lg font-bold ${stats.expectancy >= 0 ? "text-green-500" : "text-red-500"}`}>
               {stats.expectancy >= 0 ? "+" : ""}${stats.expectancy.toFixed(2)}
             </p>
-            <p className="text-xs text-muted-foreground">Per Trade</p>
+            <p className="text-[0.6rem] md:text-xs text-muted-foreground">Per Trade</p>
           </div>
 
-          <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-xs text-muted-foreground mb-1">Profit Factor</p>
-            <p className={`text-lg font-bold ${stats.profitFactor >= 1.5 ? "text-green-500" : stats.profitFactor >= 1 ? "text-yellow-500" : "text-red-500"}`}>
+          <div className="p-2 md:p-3 rounded-lg bg-muted/30">
+            <p className="text-[0.65rem] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Profit Factor</p>
+            <p className={`text-sm md:text-lg font-bold ${stats.profitFactor >= 1.5 ? "text-green-500" : stats.profitFactor >= 1 ? "text-yellow-500" : "text-red-500"}`}>
               {stats.profitFactor.toFixed(2)}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[0.6rem] md:text-xs text-muted-foreground">
               {stats.profitFactor >= 2 ? "Excellent" : stats.profitFactor >= 1.5 ? "Good" : stats.profitFactor >= 1 ? "Fair" : "Poor"}
             </p>
           </div>
 
-          <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-xs text-muted-foreground mb-1">Max Drawdown</p>
-            <p className="text-lg font-bold text-red-500">
+          <div className="p-2 md:p-3 rounded-lg bg-muted/30">
+            <p className="text-[0.65rem] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Max Drawdown</p>
+            <p className="text-sm md:text-lg font-bold text-red-500">
               -${stats.maxDrawdown.toFixed(2)}
             </p>
-            <p className="text-xs text-muted-foreground">Largest Loss</p>
+            <p className="text-[0.6rem] md:text-xs text-muted-foreground">Largest Loss</p>
           </div>
 
-          <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-xs text-muted-foreground mb-1">Avg R:R</p>
-            <p className="text-lg font-bold text-primary">
+          <div className="p-2 md:p-3 rounded-lg bg-muted/30">
+            <p className="text-[0.65rem] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Avg R:R</p>
+            <p className="text-sm md:text-lg font-bold text-primary">
               1:{stats.avgRRR.toFixed(2)}
             </p>
-            <p className="text-xs text-muted-foreground">Risk:Reward</p>
+            <p className="text-[0.6rem] md:text-xs text-muted-foreground">Risk:Reward</p>
           </div>
         </div>
 
         {/* Win/Loss Comparison */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-3.5 w-3.5 text-green-500" />
-              <p className="text-xs font-medium text-green-500">Avg Win</p>
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
+          <div className="p-2 md:p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+            <div className="flex items-center gap-1 md:gap-2 mb-0.5 md:mb-1">
+              <TrendingUp className="h-3 w-3 md:h-3.5 md:w-3.5 text-green-500" />
+              <p className="text-[0.65rem] md:text-xs font-medium text-green-500">Avg Win</p>
             </div>
-            <p className="text-lg font-bold text-green-500">
+            <p className="text-sm md:text-lg font-bold text-green-500">
               +${stats.avgWin.toFixed(2)}
             </p>
           </div>
 
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="h-3.5 w-3.5 text-red-500" />
-              <p className="text-xs font-medium text-red-500">Avg Loss</p>
+          <div className="p-2 md:p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+            <div className="flex items-center gap-1 md:gap-2 mb-0.5 md:mb-1">
+              <TrendingDown className="h-3 w-3 md:h-3.5 md:w-3.5 text-red-500" />
+              <p className="text-[0.65rem] md:text-xs font-medium text-red-500">Avg Loss</p>
             </div>
-            <p className="text-lg font-bold text-red-500">
+            <p className="text-sm md:text-lg font-bold text-red-500">
               -${stats.avgLoss.toFixed(2)}
             </p>
           </div>

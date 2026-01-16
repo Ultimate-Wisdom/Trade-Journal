@@ -82,28 +82,28 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
 
   return (
     <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="text-base md:text-lg flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm md:text-lg flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 md:h-5 md:w-5" />
           Most Profitable Day
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="p-4 rounded-lg bg-profit/10 border border-profit/30">
-            <p className="text-4xl font-bold text-profit">
+        <div className="space-y-3 md:space-y-4">
+          <div className="p-3 md:p-4 rounded-lg bg-profit/10 border border-profit/30">
+            <p className="text-2xl md:text-4xl font-bold text-profit">
               {mostProfitable.day}
             </p>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs md:text-sm text-muted-foreground mt-1">
               {mostProfitable.winrate.toFixed(0)}% win rate •{" "}
               {mostProfitable.trades} trades
             </p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5 md:space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">P&L:</span>
+              <span className="text-[0.65rem] md:text-xs text-muted-foreground">P&L:</span>
               <span
-                className={`text-lg font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
+                className={`text-sm md:text-lg font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
               >
                 {/* Fix: Only show + if positive, otherwise allow minus sign to show naturally */}
                 {mostProfitable.pnl > 0 ? "+" : ""}
@@ -111,26 +111,26 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[0.65rem] md:text-xs text-muted-foreground">
                 Avg per trade:
               </span>
               <span
-                className={`text-sm font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
+                className={`text-xs md:text-sm font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
               >
                 ${(mostProfitable.pnl / mostProfitable.trades).toFixed(2)}
               </span>
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-sidebar-border">
-            <p className="text-xs font-semibold text-muted-foreground mb-3">
+          <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-sidebar-border">
+            <p className="text-[0.65rem] md:text-xs font-semibold text-muted-foreground mb-2 md:mb-3">
               Week Overview
             </p>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-0.5 md:gap-1">
               {dayStats.map((day) => (
                 <div
                   key={day.dayNum}
-                  className={`p-2 rounded-lg text-center cursor-pointer transition-all ${
+                  className={`p-1 md:p-2 rounded text-center cursor-pointer transition-all ${
                     day.trades === 0
                       ? "bg-sidebar-accent/20 text-muted-foreground"
                       : day.pnl > 0
@@ -140,9 +140,9 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
                           : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  <p className="text-xs font-bold">{day.day}</p>
+                  <p className="text-[0.6rem] md:text-xs font-bold">{day.day}</p>
                   {day.trades > 0 && (
-                    <p className="text-xs mt-1">{day.winrate.toFixed(0)}%</p>
+                    <p className="text-[0.55rem] md:text-xs mt-0.5 md:mt-1">{day.winrate.toFixed(0)}%</p>
                   )}
                 </div>
               ))}

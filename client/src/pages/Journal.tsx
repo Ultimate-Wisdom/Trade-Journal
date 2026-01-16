@@ -144,12 +144,12 @@ export default function Journal() {
               size="sm"
               onClick={() => setOutcomeFilter("all")}
               className={cn(
-                "gap-2 h-9",
+                "gap-1 h-9 px-3 whitespace-nowrap",
                 outcomeFilter === "all" && "bg-primary"
               )}
             >
               All Trades
-              <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] justify-center">
+              <Badge variant="secondary" className="h-5 min-w-[20px] justify-center text-xs px-1">
                 {filterCounts.all}
               </Badge>
             </Button>
@@ -158,18 +158,19 @@ export default function Journal() {
               size="sm"
               onClick={() => setOutcomeFilter("win")}
               className={cn(
-                "gap-2 h-9",
+                "flex flex-row items-center gap-1 h-9 px-2 whitespace-nowrap",
                 outcomeFilter === "win"
                   ? "bg-green-600 hover:bg-green-700 text-white"
                   : "border-green-600/30 text-green-600 hover:bg-green-600/10"
               )}
             >
-              <TrendingUp className="h-4 w-4" />
-              Wins
+              <TrendingUp className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Wins</span>
+              <span className="sm:hidden font-mono font-semibold text-xs">TP</span>
               <Badge
                 variant="secondary"
                 className={cn(
-                  "ml-1 h-5 min-w-[20px] justify-center",
+                  "h-5 min-w-[20px] justify-center text-xs px-1",
                   outcomeFilter === "win" ? "bg-green-700" : "bg-green-600/20"
                 )}
               >
@@ -181,18 +182,19 @@ export default function Journal() {
               size="sm"
               onClick={() => setOutcomeFilter("loss")}
               className={cn(
-                "gap-2 h-9",
+                "flex flex-row items-center gap-1 h-9 px-2 whitespace-nowrap",
                 outcomeFilter === "loss"
                   ? "bg-red-600 hover:bg-red-700 text-white"
                   : "border-red-600/30 text-red-600 hover:bg-red-600/10"
               )}
             >
-              <TrendingDown className="h-4 w-4" />
-              Losses
+              <TrendingDown className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Losses</span>
+              <span className="sm:hidden font-mono font-semibold text-xs">SL</span>
               <Badge
                 variant="secondary"
                 className={cn(
-                  "ml-1 h-5 min-w-[20px] justify-center",
+                  "h-5 min-w-[20px] justify-center text-xs px-1",
                   outcomeFilter === "loss" ? "bg-red-700" : "bg-red-600/20"
                 )}
               >
@@ -204,18 +206,19 @@ export default function Journal() {
               size="sm"
               onClick={() => setOutcomeFilter("breakeven")}
               className={cn(
-                "gap-2 h-9",
+                "flex flex-row items-center gap-1 h-9 px-2 whitespace-nowrap",
                 outcomeFilter === "breakeven"
                   ? "bg-gray-600 hover:bg-gray-700 text-white"
                   : "border-gray-600/30 text-gray-600 hover:bg-gray-600/10"
               )}
             >
-              <Minus className="h-4 w-4" />
-              Breakeven
+              <Minus className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Breakeven</span>
+              <span className="sm:hidden font-mono font-semibold text-xs">BE</span>
               <Badge
                 variant="secondary"
                 className={cn(
-                  "ml-1 h-5 min-w-[20px] justify-center",
+                  "h-5 min-w-[20px] justify-center text-xs px-1",
                   outcomeFilter === "breakeven" ? "bg-gray-700" : "bg-gray-600/20"
                 )}
               >
@@ -281,28 +284,28 @@ export default function Journal() {
             onClear={() => setCompareTrades([])}
           />
 
-          {/* Batch Operations */}
-          <BatchOperations
-            trades={filteredTrades}
-            selectedTrades={selectedTrades}
-            onSelectionChange={setSelectedTrades}
-          />
-
-          <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                <p>Loading your trades...</p>
-              </div>
-            ) : (
-              <TradeTable
-                trades={filteredTrades}
-                showAccount={true}
-                showRRR={true}
-                showRisk={true}
-              />
-            )}
+          {/* Batch Operations - Hidden on mobile */}
+          <div className="hidden md:block">
+            <BatchOperations
+              trades={filteredTrades}
+              selectedTrades={selectedTrades}
+              onSelectionChange={setSelectedTrades}
+            />
           </div>
+
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin mb-2" />
+              <p>Loading your trades...</p>
+            </div>
+          ) : (
+            <TradeTable
+              trades={filteredTrades}
+              showAccount={true}
+              showRRR={true}
+              showRisk={true}
+            />
+          )}
         </div>
       </main>
     </div>

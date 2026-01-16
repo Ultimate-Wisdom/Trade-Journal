@@ -829,10 +829,10 @@ export default function NewEntry() {
                     </TabsTrigger>
                   </TabsList>
                   
-                  <TabsContent value="notes" className="space-y-4">
+                  <TabsContent value="notes" className="space-y-4 mt-4">
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="notes">Trade Notes & Rationale</Label>
+                        <Label htmlFor="notes" className="block text-sm font-medium mb-2">Trade Notes & Rationale</Label>
                         <Textarea
                           id="notes"
                           placeholder="Enter your trade rationale, market observations, and any relevant notes..."
@@ -927,9 +927,9 @@ export default function NewEntry() {
                     </div>
                   </TabsContent>
                   
-                  <TabsContent value="psychology" className="space-y-4">
+                  <TabsContent value="psychology" className="space-y-4 mt-4">
                     <div className="space-y-2">
-                      <Label>Psychology Tags</Label>
+                      <Label className="block text-sm font-medium mb-2">Psychology Tags</Label>
                       <p className="text-xs text-muted-foreground">
                         Select tags that describe your psychological state during this trade
                       </p>
@@ -960,9 +960,9 @@ export default function NewEntry() {
                     </div>
                   </TabsContent>
                   
-                  <TabsContent value="setup" className="space-y-4">
+                  <TabsContent value="setup" className="space-y-4 mt-4">
                     <div className="space-y-2">
-                      <Label htmlFor="setup">Technical Setup Description</Label>
+                      <Label htmlFor="setup" className="block text-sm font-medium mb-2">Technical Setup Description</Label>
                       <Textarea
                         id="setup"
                         placeholder="Describe the technical setup: chart patterns, indicators, entry signals, etc..."

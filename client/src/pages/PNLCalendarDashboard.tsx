@@ -367,44 +367,44 @@ export default function PNLCalendarDashboard() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-3 mb-8">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4 mb-8">
             <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Win Rate</CardTitle>
+              <CardHeader className="pb-2 px-3 pt-3 md:pb-3 md:px-6 md:pt-6">
+                <CardTitle className="text-xs md:text-sm">Win Rate</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">
+              <CardContent className="px-3 pb-3 md:px-6 md:pb-6">
+                <p className="text-xl md:text-3xl font-bold">
                   {monthlyStats.totalTrades > 0
                     ? ((monthlyStats.totalWins / monthlyStats.totalTrades) * 100).toFixed(1)
                     : "0"}
                   %
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-[0.65rem] md:text-xs text-muted-foreground mt-1 md:mt-2">
                   {monthlyStats.totalWins}W / {monthlyStats.totalTrades} total
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Avg P&L Per Trade</CardTitle>
+              <CardHeader className="pb-2 px-3 pt-3 md:pb-3 md:px-6 md:pt-6">
+                <CardTitle className="text-xs md:text-sm">Avg P&L Per Trade</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${monthlyStats.totalPNL >= 0 ? "text-profit" : "text-destructive"}`}>
+              <CardContent className="px-3 pb-3 md:px-6 md:pb-6">
+                <p className={`text-xl md:text-3xl font-bold ${monthlyStats.totalPNL >= 0 ? "text-profit" : "text-destructive"}`}>
                   ${monthlyStats.totalTrades > 0 ? maskValue(Math.round(monthlyStats.totalPNL / monthlyStats.totalTrades)) : maskValue(0)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-[0.65rem] md:text-xs text-muted-foreground mt-1 md:mt-2">
                   {monthlyStats.totalTrades} trades
                 </p>
               </CardContent>
             </Card>
 
             <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Best Trading Day</CardTitle>
+              <CardHeader className="pb-2 px-3 pt-3 md:pb-3 md:px-6 md:pt-6">
+                <CardTitle className="text-xs md:text-sm">Best Trading Day</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-profit">
+              <CardContent className="px-3 pb-3 md:px-6 md:pb-6">
+                <p className="text-xl md:text-3xl font-bold text-profit">
                   {(() => {
                     const positiveDays = calendarData.filter((d) => d.pnl > 0);
                     if (positiveDays.length === 0) return "—";
@@ -412,33 +412,33 @@ export default function PNLCalendarDashboard() {
                     return `$${maskValue(maxPnl)}`;
                   })()}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">Peak daily P&L</p>
+                <p className="text-[0.65rem] md:text-xs text-muted-foreground mt-1 md:mt-2">Peak daily P&L</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
+              <CardHeader className="pb-2 px-3 pt-3 md:pb-3 md:px-6 md:pt-6">
+                <CardTitle className="text-xs md:text-sm">Weekly Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 md:px-6 md:pb-6">
+                {weeklyData.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {weeklyData.slice(0, 1).map((week, idx) => (
+                      <div key={idx}>
+                        <p className="text-xs font-semibold text-muted-foreground mb-1">Week {idx + 1}</p>
+                        <p className={`text-xl md:text-3xl font-bold font-mono ${week.pnl > 0 ? "text-profit" : "text-destructive"}`}>
+                          ${maskValue(week.pnl)}
+                        </p>
+                        <p className="text-[0.65rem] md:text-xs text-muted-foreground mt-1">{week.wins}W / {week.trades}T</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xl md:text-3xl font-bold">—</p>
+                )}
               </CardContent>
             </Card>
           </div>
-
-          <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Weekly Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {weeklyData.length > 0 ? (
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                  {weeklyData.map((week, idx) => (
-                    <div key={idx} className="p-3 rounded-lg bg-sidebar-accent/30 border border-sidebar-border">
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Week {idx + 1}</p>
-                      <p className={`text-lg font-bold font-mono ${week.pnl > 0 ? "text-profit" : "text-destructive"}`}>
-                        ${maskValue(week.pnl)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">{week.wins}W / {week.trades}T</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-6">No trades this month</p>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </main>
     </div>

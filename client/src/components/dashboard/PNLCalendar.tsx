@@ -48,43 +48,43 @@ export function PNLCalendar({ trades }: PNLCalendarProps) {
 
   return (
     <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="text-base md:text-lg flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm md:text-lg flex items-center gap-2">
+          <Calendar className="h-4 w-4 md:h-5 md:w-5" />
           Trading Days P&L
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 max-h-[400px] overflow-y-auto">
           {dailyPNLList.length > 0 ? (
             dailyPNLList.map((daily) => {
               const percentage = (Math.abs(daily.pnl) / maxPNL) * 100;
               const winrate = (daily.wins / daily.trades) * 100;
 
               return (
-                <div key={daily.date} className="space-y-1">
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/20">
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold">
-                        {new Date(daily.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}{" "}
-                        <span className="text-xs text-muted-foreground">({daily.day})</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {daily.wins}/{daily.trades} • {winrate.toFixed(0)}%
-                      </p>
-                    </div>
+                <div key={daily.date} className="space-y-1.5">
+                  <div className="flex flex-col p-2 md:p-3 rounded-lg bg-sidebar-accent/20">
+                    <p className="text-xs md:text-sm font-semibold truncate">
+                      {new Date(daily.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                    <p className="text-[0.65rem] md:text-xs text-muted-foreground">
+                      {daily.day}
+                    </p>
+                    <p className="text-[0.6rem] md:text-xs text-muted-foreground mt-1">
+                      {daily.wins}/{daily.trades} • {winrate.toFixed(0)}%
+                    </p>
                     <p
-                      className={`text-right font-mono font-bold text-sm ${
+                      className={`font-mono font-bold text-xs md:text-sm mt-1 ${
                         daily.pnl > 0 ? "text-profit" : daily.pnl < 0 ? "text-destructive" : "text-muted-foreground"
                       }`}
                     >
-                      {daily.pnl > 0 ? "+" : ""} ${daily.pnl.toLocaleString()}
+                      {daily.pnl > 0 ? "+" : ""}${daily.pnl.toLocaleString()}
                     </p>
                   </div>
-                  <div className="h-2 bg-sidebar-accent/30 rounded-full overflow-hidden">
+                  <div className="h-1.5 md:h-2 bg-sidebar-accent/30 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${
                         daily.pnl > 0 ? "bg-profit" : daily.pnl < 0 ? "bg-destructive" : "bg-muted"
@@ -96,7 +96,7 @@ export function PNLCalendar({ trades }: PNLCalendarProps) {
               );
             })
           ) : (
-            <p className="text-xs text-muted-foreground text-center py-6">No trading days yet</p>
+            <p className="text-xs text-muted-foreground text-center py-6 col-span-full">No trading days yet</p>
           )}
         </div>
       </CardContent>

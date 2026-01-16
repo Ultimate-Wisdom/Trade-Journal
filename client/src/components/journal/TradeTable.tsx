@@ -65,8 +65,9 @@ export function TradeTable({
   };
 
   return (
-    <div className="rounded-md border bg-card/50 backdrop-blur-sm">
-      <Table>
+    <div className="rounded-md border bg-card/50 backdrop-blur-sm overflow-hidden">
+      <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+        <Table className="min-w-[800px]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-[100px]">Date</TableHead>
@@ -157,12 +158,12 @@ export function TradeTable({
                   </TableCell>
 
                   {showAccount && (
-                    <TableCell className="text-xs opacity-70">
+                    <TableCell className="text-xs opacity-70 max-w-[120px] truncate">
                       {getAccountName(trade.accountId)}
                     </TableCell>
                   )}
 
-                  <TableCell className="font-bold font-mono">
+                  <TableCell className="font-bold font-mono whitespace-nowrap">
                     {trade.symbol}
                   </TableCell>
 
@@ -170,7 +171,7 @@ export function TradeTable({
                     <Badge
                       variant="outline"
                       className={cn(
-                        "font-mono text-xs",
+                        "font-mono text-xs whitespace-nowrap",
                         trade.direction === "Long"
                           ? "text-primary border-primary/30 bg-primary/10"
                           : "text-destructive border-destructive/30 bg-destructive/10",
@@ -180,7 +181,7 @@ export function TradeTable({
                     </Badge>
                   </TableCell>
 
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm max-w-[150px] truncate">
                     {trade.strategy || "—"}
                   </TableCell>
 
@@ -261,5 +262,6 @@ export function TradeTable({
           )}
         </TableBody>
       </Table>
+      </div>
     </div>
   );}

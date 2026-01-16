@@ -136,44 +136,44 @@ export function MultitimeframeAnalysis({ trades }: MultitimeframeAnalysisProps) 
   }
 
   const TimeframeTable = ({ data }: { data: any[] }) => (
-    <div className="space-y-2">
+    <div className="grid grid-cols-2 gap-2 md:gap-3">
       {data.map((item, idx) => (
         <div
           key={idx}
-          className="p-3 rounded-lg bg-muted/30 hover:bg-muted/40 transition-colors"
+          className="p-2 md:p-3 rounded-lg bg-muted/30 hover:bg-muted/40 transition-colors"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">{item.date || item.period}</span>
+          <div className="mb-1.5">
+            <p className="text-xs md:text-sm font-medium truncate">{item.date || item.period}</p>
             <Badge
-              className={
+              className={`text-xs ${
                 item.winRate >= 60
                   ? "bg-green-500/20 text-green-500"
                   : item.winRate >= 40
                   ? "bg-yellow-500/20 text-yellow-500"
                   : "bg-red-500/20 text-red-500"
-              }
+              }`}
             >
-              {item.winRate.toFixed(0)}% WR
+              {item.winRate.toFixed(0)}%
             </Badge>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-sm">
-            <div>
-              <p className="text-muted-foreground text-xs">Trades</p>
-              <p className="font-bold">{item.trades}</p>
+          <div className="space-y-1 text-xs md:text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Trades:</span>
+              <span className="font-bold">{item.trades}</span>
             </div>
-            <div>
-              <p className="text-muted-foreground text-xs">W/L</p>
-              <p className="font-bold">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">W/L:</span>
+              <span className="font-bold">
                 <span className="text-green-500">{item.wins}</span>
-                {" / "}
+                {"/"}
                 <span className="text-red-500">{item.losses}</span>
-              </p>
+              </span>
             </div>
-            <div className="text-right">
-              <p className="text-muted-foreground text-xs">P&L</p>
-              <p className={`font-bold font-mono ${item.pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {item.pnl >= 0 ? "+" : ""}${item.pnl.toFixed(2)}
-              </p>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">P&L:</span>
+              <span className={`font-bold font-mono ${item.pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {item.pnl >= 0 ? "+" : ""}${item.pnl.toFixed(0)}
+              </span>
             </div>
           </div>
         </div>
@@ -183,24 +183,24 @@ export function MultitimeframeAnalysis({ trades }: MultitimeframeAnalysisProps) 
 
   return (
     <Card className="border-sidebar-border bg-card/50">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm md:text-base flex items-center gap-2">
           <Calendar className="h-4 w-4 text-primary" />
           Multi-Timeframe Analysis
         </CardTitle>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[0.65rem] md:text-xs text-muted-foreground">
           Performance across different timeframes
         </p>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="daily" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="daily">Daily</TabsTrigger>
-            <TabsTrigger value="weekly">Weekly</TabsTrigger>
-            <TabsTrigger value="monthly">Monthly</TabsTrigger>
+          <TabsList className="inline-flex w-full justify-start gap-1 h-9 overflow-x-auto">
+            <TabsTrigger value="daily" className="flex-1 text-xs md:text-sm px-3 py-1 md:px-4 h-full whitespace-nowrap">Daily</TabsTrigger>
+            <TabsTrigger value="weekly" className="flex-1 text-xs md:text-sm px-3 py-1 md:px-4 h-full whitespace-nowrap">Weekly</TabsTrigger>
+            <TabsTrigger value="monthly" className="flex-1 text-xs md:text-sm px-3 py-1 md:px-4 h-full whitespace-nowrap">Monthly</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="daily" className="space-y-4">
+          <TabsContent value="daily" className="space-y-4 mt-4">
             <div className="flex items-center justify-between text-sm mb-2">
               <span className="text-muted-foreground">Last 7 days</span>
               <TrendingUp className="h-4 w-4 text-primary" />
@@ -214,7 +214,7 @@ export function MultitimeframeAnalysis({ trades }: MultitimeframeAnalysisProps) 
             )}
           </TabsContent>
           
-          <TabsContent value="weekly" className="space-y-4">
+          <TabsContent value="weekly" className="space-y-4 mt-4">
             <div className="flex items-center justify-between text-sm mb-2">
               <span className="text-muted-foreground">Last 4 weeks</span>
               <TrendingUp className="h-4 w-4 text-primary" />
@@ -228,7 +228,7 @@ export function MultitimeframeAnalysis({ trades }: MultitimeframeAnalysisProps) 
             )}
           </TabsContent>
           
-          <TabsContent value="monthly" className="space-y-4">
+          <TabsContent value="monthly" className="space-y-4 mt-4">
             <div className="flex items-center justify-between text-sm mb-2">
               <span className="text-muted-foreground">Last 3 months</span>
               <TrendingUp className="h-4 w-4 text-primary" />

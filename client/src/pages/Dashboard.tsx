@@ -185,7 +185,7 @@ export default function Dashboard() {
           </header>
 
           {/* Account Selector and Tree */}
-          <div className="mb-8 grid gap-6 md:grid-cols-3">
+          <div className="mb-3 md:mb-8 grid gap-3 md:gap-6 md:grid-cols-3">
             <Card className="md:col-span-1 border-sidebar-border bg-card/50 backdrop-blur-sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -219,7 +219,7 @@ export default function Dashboard() {
             </Card>
 
             {/* Stats Section */}
-            <div className="md:col-span-2 grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-6 md:mb-8">
+            <div className="md:col-span-2 grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-0 md:mb-8">
             <StatsCard
               title="Total P&L"
               value={`$${maskValue(stats.totalPnl)}`}
@@ -252,26 +252,26 @@ export default function Dashboard() {
           </div>
 
           {/* Charts Section */}
-          <div className="grid gap-4 md:gap-4 md:grid-cols-7 mb-6 md:mb-8">
-            <div className="col-span-2 md:col-span-4 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-4 md:p-6">
-              <div className="mb-4 flex items-center justify-between">
+          <div className="grid gap-3 md:gap-4 md:grid-cols-7 mb-3 md:mb-8">
+            <div className="col-span-2 md:col-span-4 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-3 md:p-6">
+              <div className="mb-2 md:mb-4 flex items-center justify-between">
                 <h3 className="text-sm md:text-base font-semibold leading-none tracking-tight">
                   Equity Curve
                 </h3>
               </div>
               <EquityChart />
             </div>
-            <div className="col-span-2 md:col-span-3 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative min-h-[160px]">
+            <div className="col-span-2 md:col-span-3 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative min-h-[140px] md:min-h-[160px]">
               <img
                 src={generatedImage}
                 alt="Abstract visualization"
                 className="absolute inset-0 h-full w-full object-cover opacity-20 mix-blend-overlay"
               />
-              <div className="relative z-10 p-4 md:p-6 flex flex-col justify-end h-full">
-                <h3 className="text-base md:text-lg font-bold">
+              <div className="relative z-10 p-3 md:p-6 flex flex-col justify-end h-full">
+                <h3 className="text-sm md:text-lg font-bold">
                   Weekly Insight
                 </h3>
-                <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-prose">
+                <p className="text-[0.7rem] md:text-sm text-muted-foreground mt-1 max-w-prose">
                   {journalTrades.length > 0 
                     ? "Keep logging trades to generate AI insights." 
                     : "Welcome to OPES. Log your first trade to unlock insights."}
@@ -280,26 +280,26 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-6 md:mt-8">
+          <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-3 md:mt-8">
             <StrategyInsights trades={journalTrades} />
             <AdvancedStatistics trades={filteredTrades || []} />
             <CorrelationAnalysis trades={filteredTrades || []} />
           </div>
 
-          <div className="grid gap-6 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-6 md:mt-8">
-            <div className="lg:col-span-2 space-y-4">
+          <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-3 md:mt-8">
+            <div className="lg:col-span-2 space-y-3 md:space-y-4">
               <PNLCalendar trades={journalTrades} />
               <MultitimeframeAnalysis trades={filteredTrades || []} />
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               <MostProfitableDay trades={journalTrades} />
               <PerformanceBenchmark trades={filteredTrades || []} />
               <SessionAnalysis trades={filteredTrades || []} />
             </div>
           </div>
 
-          <div className="space-y-4 mt-6 md:mt-8">
-            <h3 className="text-lg md:text-xl font-semibold tracking-tight">
+          <div className="space-y-3 md:space-y-4 mt-3 md:mt-8">
+            <h3 className="text-base md:text-xl font-semibold tracking-tight">
               Recent Trades
             </h3>
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">

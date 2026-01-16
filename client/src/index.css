@@ -347,7 +347,6 @@
     /* Larger touch targets for mobile */
     button, [role="button"], a {
       min-height: 44px;
-      min-width: 44px;
     }
 
     /* Better spacing on mobile */
@@ -356,13 +355,33 @@
     }
 
     /* Prevent horizontal scroll */
-    body {
+    body, html {
       overflow-x: hidden;
+      width: 100%;
+    }
+    
+    #root {
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    /* Better text wrapping for long words */
+    p, span, div {
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    
+    /* Prevent code/monospace text overflow */
+    code, pre, .font-mono {
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     /* Better form inputs on mobile */
     input, textarea, select {
       font-size: 16px !important; /* Prevents zoom on iOS */
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     /* Mobile-optimized cards */
@@ -376,10 +395,38 @@
       width: 100% !important;
     }
 
-    /* Better table scrolling */
-    .table-container {
-      overflow-x: auto;
+    /* Better table scrolling - CRITICAL FOR MOBILE */
+    .overflow-x-auto {
+      overflow-x: auto !important;
+      overflow-y: visible;
       -webkit-overflow-scrolling: touch;
+      width: 100%;
+      scroll-behavior: smooth;
+    }
+    
+    /* Prevent table from overflowing viewport */
+    table {
+      width: 100%;
+      display: table;
+      table-layout: auto;
+    }
+    
+    /* Ensure table cells don't wrap */
+    td, th {
+      white-space: nowrap !important;
+      padding: 0.5rem 0.5rem;
+      font-size: 0.875rem;
+    }
+    
+    /* Compact badges on mobile */
+    td .badge, td [class*="badge"] {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.35rem;
+    }
+    
+    /* Hide checkbox column on mobile (batch operations) */
+    th:first-child, td:first-child {
+      display: none;
     }
 
     /* Sticky mobile headers */
@@ -421,6 +468,84 @@
     .grid-mobile-1 {
       grid-template-columns: 1fr !important;
     }
+    
+    /* Responsive grids on mobile (3+ columns become 1 or 2) */
+    /* BUT preserve explicit 2-column grids */
+    [class*="grid-cols-3"]:not([class*="grid-cols-2"]),
+    [class*="grid-cols-5"],
+    [class*="grid-cols-6"] {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* FORCE 2x2 grid for stats cards on mobile - CRITICAL */
+    .grid.grid-cols-2 {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    /* Prevent ANY grid override on 2-column layouts */
+    [class*="grid"][class*="grid-cols-2"] {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+    
+    /* Prevent flex items from overflowing */
+    .flex > * {
+      min-width: 0;
+    }
+
+    /* Prevent text overflow in cards */
+    .card h3, .card p, [class*="card"] h3, [class*="card"] p {
+      overflow-wrap: break-word;
+      word-break: break-word;
+      max-width: 100%;
+    }
+
+    /* Specifically handle card titles */
+    [role="heading"], h1, h2, h3, h4, h5, h6 {
+      overflow-wrap: break-word;
+      word-break: break-word;
+      hyphens: auto;
+    }
+
+    /* Ensure card content doesn't overflow */
+    [class*="CardContent"], [class*="CardHeader"], [class*="CardTitle"] {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Fix for long numbers in cards */
+    .font-mono, [class*="font-mono"] {
+      font-size: 0.9em; /* Slightly smaller for mobile */
+      word-break: break-all;
+    }
+
+    /* NO GLOBAL TAB OVERRIDES - Let components control their own styles */
+
+    /* FIX OVERLAPPING LABELS AND HEADINGS */
+    label, [class*="Label"] {
+      display: block !important;
+      margin-bottom: 0.5rem !important;
+      position: relative !important;
+      z-index: 1 !important;
+      background: transparent !important;
+    }
+
+    /* Ensure proper spacing in forms */
+    .space-y-2 > * + *, [class*="space-y"] > * + * {
+      margin-top: 0.75rem !important;
+    }
+
+    /* Fix absolute positioned elements overlapping */
+    [class*="absolute"] {
+      z-index: auto !important;
+    }
+
+    /* Prevent flex/grid items from overlapping */
+    .flex > *, .grid > *, [class*="flex"] > *, [class*="grid"] > * {
+      min-width: 0 !important;
+      min-height: 0 !important;
+    }
 
     /* Hide desktop-only elements */
     .desktop-only {
@@ -437,6 +562,12 @@
       font-size: 1.125rem;
       line-height: 1.75rem;
     }
+    
+    /* Truncate long text on mobile */
+    h1, h2, h3, h4, h5, h6 {
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
 
     /* Improved mobile spacing */
     .px-mobile-safe {
@@ -452,6 +583,39 @@
     .stat-card-mobile {
       padding: 0.75rem;
       min-height: auto;
+    }
+
+    /* Compact card headers and content on mobile */
+    [data-slot="card-header"] {
+      padding: 0.75rem !important;
+    }
+
+    [data-slot="card-content"] {
+      padding: 0.75rem !important;
+    }
+
+    /* Reduce all card padding on mobile */
+    .card, [class*="card"] {
+      padding: 0;
+    }
+
+    /* Reduce margin/spacing on mobile - AGGRESSIVE */
+    .mb-3, .mb-4, .mb-6, .mb-8 {
+      margin-bottom: 0.75rem !important;
+    }
+
+    .mt-3, .mt-4, .mt-6, .mt-8 {
+      margin-top: 0.75rem !important;
+    }
+
+    .gap-3, .gap-4, .gap-6 {
+      gap: 0.75rem !important;
+    }
+
+    /* Tighter grid layout on mobile */
+    main {
+      padding-left: 0.75rem !important;
+      padding-right: 0.75rem !important;
     }
 
     /* Optimized mobile charts */
@@ -521,6 +685,12 @@
     *:focus-visible {
       outline: 3px solid hsl(var(--primary));
       outline-offset: 3px;
+    }
+    
+    /* Better mobile dialog positioning */
+    [role="dialog"] {
+      margin: 1rem;
+      max-width: calc(100vw - 2rem);
     }
   }
 }
