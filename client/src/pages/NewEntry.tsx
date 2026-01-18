@@ -12,6 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -37,13 +43,13 @@ import {
   Briefcase,
   Star,
   Clock,
-  Calendar,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { Link, useRoute, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Account, Trade as DBTrade } from "@shared/schema";
-import { mockStrategies, calculateRRR, calculateSLPercent, calculateTPPercent } from "@/lib/mockData";
+import { Account, Trade as DBTrade, TradeTemplate } from "@shared/schema";
+import { calculateRRR, calculateSLPercent, calculateTPPercent } from "@/lib/mockData";
 import { safeParseFloat, validateNumericInput } from "@/lib/validationUtils";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -139,13 +145,9 @@ export default function NewEntry() {
     }
   }, [entryDate]);
   const [psychologyTags, setPsychologyTags] = useState<string[]>([]);
-  const [newStrategyOpen, setNewStrategyOpen] = useState(false);
-  const [newStrategyName, setNewStrategyName] = useState("");
   
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const [strategies, setStrategies] = useState<string[]>(mockStrategies);
 
   const [, params] = useRoute("/new-entry/:id");
   const tradeIdToEdit = params?.id;
@@ -154,6 +156,17 @@ export default function NewEntry() {
   const { data: accounts, isLoading: isLoadingAccounts } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
   });
+
+  // Fetch strategies from Playbook
+  const { data: playbookTemplates = [], isLoading: isLoadingPlaybook } = useQuery<TradeTemplate[]>({
+    queryKey: ["/api/templates"],
+  });
+
+  // Extract strategy names from playbook templates
+  const playbookStrategies = playbookTemplates.map((template) => template.name);
+  
+  // Track if user is entering a custom strategy (not from Playbook)
+  const [isCustomStrategy, setIsCustomStrategy] = useState(false);
 
   // Fetch trade data if editing
   const { data: tradeData, isLoading: isLoadingTrade } = useQuery<DBTrade>({
@@ -183,7 +196,14 @@ export default function NewEntry() {
       setTakeProfit(tradeData.takeProfit ? String(tradeData.takeProfit) : "");
       setSwap(tradeData.swap ? String(tradeData.swap) : "");
       setCommission(tradeData.commission ? String(tradeData.commission) : "");
-      setStrategy(tradeData.strategy || "");
+      const loadedStrategy = tradeData.strategy || "";
+      setStrategy(loadedStrategy);
+      // Check if loaded strategy is from playbook or custom
+      if (loadedStrategy && !playbookStrategies.includes(loadedStrategy)) {
+        setIsCustomStrategy(true);
+      } else {
+        setIsCustomStrategy(false);
+      }
       
       // Extract psychology tags from notes if present
       const notesText = tradeData.notes || "";
@@ -232,7 +252,7 @@ export default function NewEntry() {
       }
       setEntryTime(tradeData.entryTime ? String(tradeData.entryTime) : "");
     }
-  }, [tradeData]);
+  }, [tradeData, playbookStrategies]);
 
   // Set default account if only one exists
   useEffect(() => {
@@ -649,7 +669,7 @@ export default function NewEntry() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
+                <div className="flex flex-col gap-4 md:gap-6">
                   {/* Account Selection */}
                   {accounts && accounts.length > 0 && (
                     <div className="space-y-2">
@@ -707,68 +727,82 @@ export default function NewEntry() {
 
                   {/* Strategy */}
                   <div className="space-y-2">
-                    <Label htmlFor="strategy" className="flex items-center gap-2">
-                      <Target className="h-3.5 w-3.5" />
-                      Strategy
-                    </Label>
-                    <div className="flex gap-2">
-                      <Select value={strategy} onValueChange={setStrategy}>
-                        <SelectTrigger id="strategy" className="flex-1">
-                          <SelectValue placeholder="Select strategy" />
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="strategy" className="flex items-center gap-2">
+                        <Target className="h-3.5 w-3.5" />
+                        Strategy
+                      </Label>
+                      <Link href="/playbook">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs">
+                          Manage Playbook
+                        </Button>
+                      </Link>
+                    </div>
+                    {isCustomStrategy ? (
+                      <div className="space-y-2">
+                        <Select 
+                          value="" 
+                          onValueChange={(v) => {
+                            if (v !== "other") {
+                              setStrategy(v);
+                              setIsCustomStrategy(false);
+                            }
+                          }}
+                        >
+                          <SelectTrigger id="strategy">
+                            <SelectValue>Other (Custom)</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {playbookStrategies.map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {s}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="other">Other (Enter custom)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="Enter custom strategy name"
+                          value={strategy}
+                          onChange={(e) => setStrategy(e.target.value)}
+                        />
+                      </div>
+                    ) : (
+                      <Select 
+                        value={strategy} 
+                        onValueChange={(v) => {
+                          if (v === "other") {
+                            setStrategy("");
+                            setIsCustomStrategy(true);
+                          } else {
+                            setStrategy(v);
+                            setIsCustomStrategy(false);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="strategy">
+                          <SelectValue placeholder={isLoadingPlaybook ? "Loading..." : playbookStrategies.length === 0 ? "No strategies found" : "Select from Playbook"}>
+                            {strategy || (isLoadingPlaybook ? "Loading..." : playbookStrategies.length === 0 ? "No strategies found" : "Select from Playbook")}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {strategies.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s}
-                            </SelectItem>
-                          ))}
+                          {isLoadingPlaybook ? (
+                            <SelectItem value="loading" disabled>Loading strategies...</SelectItem>
+                          ) : playbookStrategies.length === 0 ? (
+                            <SelectItem value="empty" disabled>No strategies in Playbook</SelectItem>
+                          ) : (
+                            <>
+                              {playbookStrategies.map((s) => (
+                                <SelectItem key={s} value={s}>
+                                  {s}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="other">Other (Enter custom)</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
-                      <Dialog
-                        open={newStrategyOpen}
-                        onOpenChange={setNewStrategyOpen}
-                      >
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="icon" title="Add new strategy">
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add New Strategy</DialogTitle>
-                          </DialogHeader>
-                          <div className="py-4 space-y-4">
-                            <Input
-                              placeholder="Strategy Name"
-                              value={newStrategyName}
-                              onChange={(e) => setNewStrategyName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && newStrategyName.trim()) {
-                                  setStrategies([...strategies, newStrategyName.trim()]);
-                                  setStrategy(newStrategyName.trim());
-                                  setNewStrategyOpen(false);
-                                  setNewStrategyName("");
-                                }
-                              }}
-                            />
-                            <Button
-                              className="w-full"
-                              onClick={() => {
-                                if (newStrategyName.trim()) {
-                                  setStrategies([...strategies, newStrategyName.trim()]);
-                                  setStrategy(newStrategyName.trim());
-                                  setNewStrategyOpen(false);
-                                  setNewStrategyName("");
-                                }
-                              }}
-                              disabled={!newStrategyName.trim()}
-                            >
-                              Add Strategy
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
+                    )}
                   </div>
 
                   {/* Direction */}
@@ -1032,7 +1066,7 @@ export default function NewEntry() {
 
                   {/* Exit Reason - Only show if Manual Close */}
                   {exitCondition === "Manual Close" && (
-                    <div className="space-y-2 md:col-span-2">
+                    <div className="space-y-2">
                       <Label htmlFor="exitReason" className="flex items-center gap-2">
                         <FileText className="h-3.5 w-3.5" />
                         Reason for Manual Close
@@ -1094,18 +1128,18 @@ export default function NewEntry() {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="notes" className="space-y-4">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="notes" className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Notes
+                  <TabsList className="inline-flex w-full h-auto p-1 overflow-x-auto">
+                    <TabsTrigger value="notes" className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 px-2 sm:px-3 py-2 text-xs sm:text-sm">
+                      <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="truncate">Notes</span>
                     </TabsTrigger>
-                    <TabsTrigger value="psychology" className="flex items-center gap-2">
-                      <Brain className="h-4 w-4" />
-                      Psychology
+                    <TabsTrigger value="psychology" className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 px-2 sm:px-3 py-2 text-xs sm:text-sm">
+                      <Brain className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="truncate">Psychology</span>
                     </TabsTrigger>
-                    <TabsTrigger value="setup" className="flex items-center gap-2">
-                      <Settings className="h-4 w-4" />
-                      Setup
+                    <TabsTrigger value="setup" className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 px-2 sm:px-3 py-2 text-xs sm:text-sm">
+                      <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="truncate">Setup</span>
                     </TabsTrigger>
                   </TabsList>
                   
@@ -1141,24 +1175,55 @@ export default function NewEntry() {
 
                         <div className="space-y-2">
                           <Label htmlFor="entryDate" className="flex items-center gap-2">
-                            <Calendar className="h-3.5 w-3.5" />
+                            <CalendarIcon className="h-3.5 w-3.5" />
                             Entry Date
                           </Label>
-                          <Input
-                            id="entryDate"
-                            type="date"
-                            value={entryDate || ""}
-                            onChange={(e) => {
-                              // Ensure we're always setting a string value
-                              const value = e.target.value || "";
-                              setEntryDate(String(value));
-                            }}
-                            max={(() => {
-                              const today = new Date();
-                              return today.toISOString().split('T')[0];
-                            })()}
-                            className="font-mono"
-                          />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-mono",
+                                  !entryDate && "text-muted-foreground"
+                                )}
+                                id="entryDate"
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {entryDate ? (
+                                  new Date(entryDate + "T00:00:00").toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                  })
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={entryDate ? new Date(entryDate + "T00:00:00") : undefined}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    const dateString = date.toISOString().split('T')[0];
+                                    setEntryDate(dateString);
+                                  } else {
+                                    setEntryDate("");
+                                  }
+                                }}
+                                disabled={(date) => {
+                                  const today = new Date();
+                                  today.setHours(0, 0, 0, 0);
+                                  return date > today;
+                                }}
+                                initialFocus
+                                captionLayout="dropdown-buttons"
+                                fromYear={2020}
+                                toYear={new Date().getFullYear()}
+                              />
+                            </PopoverContent>
+                          </Popover>
                           <p className="text-xs text-muted-foreground">
                             When did this trade happen? (Leave empty for today)
                           </p>

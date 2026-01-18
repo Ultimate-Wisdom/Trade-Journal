@@ -13,7 +13,7 @@ import {
 import { Search, Filter, PlusCircle, Loader2, Download, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Account } from "@shared/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,16 @@ import { Badge } from "@/components/ui/badge";
 import { ExportDialog } from "@/components/export/ExportDialog";
 import { BatchOperations } from "@/components/batch/BatchOperations";
 import { TradeComparison } from "@/components/comparison/TradeComparison";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Journal() {
   const [trades, setTrades] = useState([]);
@@ -30,7 +40,10 @@ export default function Journal() {
   const [outcomeFilter, setOutcomeFilter] = useState<"all" | "win" | "loss" | "breakeven">("all");
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [compareTrades, setCompareTrades] = useState<string[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tradeToDelete, setTradeToDelete] = useState<string | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch accounts for export
   const { data: accounts = [] } = useQuery<Account[]>({
@@ -65,6 +78,68 @@ export default function Journal() {
         setIsLoading(false);
       });
   }, []);
+
+  // Delete trade mutation
+  const deleteTradeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/trades/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to delete trade");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      // Refetch trades list
+      queryClient.invalidateQueries({ queryKey: ["/api/trades"] });
+      // Also refetch locally using useEffect approach
+      fetch("/api/trades")
+        .then((res) => res.json())
+        .then((data) => {
+          const formattedData = data.map((t: any) => ({
+            ...t,
+            id: String(t.id),
+            pair: t.symbol || t.pair || "UNKNOWN",
+            entryPrice: parseFloat(t.entryPrice) || 0,
+            slPrice: parseFloat(t.stopLoss) || 0,
+            tpPrice: parseFloat(t.takeProfit) || 0,
+            exitPrice: t.exitPrice ? parseFloat(t.exitPrice) : null,
+            pnl: t.pnl ? parseFloat(t.pnl) : 0,
+            date: t.createdAt
+              ? new Date(t.createdAt).toLocaleDateString()
+              : new Date().toLocaleDateString(),
+            type: "Forex",
+          }));
+          setTrades(formattedData);
+        })
+        .catch((err) => {
+          console.error("Error fetching trades:", err);
+        });
+      
+      setDeleteDialogOpen(false);
+      setTradeToDelete(null);
+      toast({
+        title: "Trade deleted",
+        description: "The trade has been successfully deleted.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete trade",
+      });
+    },
+  });
+
+  const handleDeleteTrade = () => {
+    if (tradeToDelete) {
+      deleteTradeMutation.mutate(tradeToDelete);
+    }
+  };
 
   // SAFE FILTERING:
   // Enhanced search across multiple fields (symbol, notes, psychology, mistakes, improvements, strategy)
@@ -304,10 +379,45 @@ export default function Journal() {
               showAccount={true}
               showRRR={true}
               showRisk={true}
+              onDelete={(id) => {
+                setTradeToDelete(id);
+                setDeleteDialogOpen(true);
+              }}
             />
           )}
         </div>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Trade</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this trade? This action cannot be undone and will permanently remove the trade from your journal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTradeToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTrade}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteTradeMutation.isPending}
+            >
+              {deleteTradeMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

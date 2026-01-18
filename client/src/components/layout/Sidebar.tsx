@@ -10,7 +10,8 @@ import {
   LogOut,
   User,
   Eye,
-  EyeOff
+  EyeOff,
+  Brain
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ const navigationGroups = [
     title: "Settings",
     links: [
       { href: "/accounts", label: "Accounts", icon: Briefcase },
+      { href: "/playbook", label: "Playbook", icon: BookOpen },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },

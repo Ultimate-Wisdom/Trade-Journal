@@ -42,18 +42,7 @@ export interface RemovedStrategy {
   tradesCount: number;
 }
 
-export const mockStrategies = [
-  "SMC (Smart Money Concepts)",
-  "ICT (Inner Circle Trader)",
-  "Price Action",
-  "Break & Retest",
-  "Supply & Demand",
-  "EMA Crossover",
-  "VWAP Reversion",
-  "News Trading",
-  "Scalping",
-  "Swing Trading",
-];
+export const mockStrategies: string[] = [];
 
 // === CALCULATOR FUNCTIONS ===
 

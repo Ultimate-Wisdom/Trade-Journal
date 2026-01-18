@@ -49,14 +49,20 @@ export default function Dashboard() {
   // Filter trades by selected account
   const filteredTrades = useMemo(() => {
     if (!dbTrades) return [];
-    if (!selectedAccountId) return dbTrades; // Show all trades if no account selected
-    return dbTrades.filter((t) => t.accountId === selectedAccountId);
+    let filtered = dbTrades;
+    if (selectedAccountId) {
+      filtered = filtered.filter((t) => t.accountId === selectedAccountId);
+    }
+    return filtered;
   }, [dbTrades, selectedAccountId]);
 
   // Transform database trades to match the expected Trade interface for dashboard components
+  // Exclude adjustments from analytics calculations
   const trades = useMemo(() => {
     if (!filteredTrades) return [];
-    return filteredTrades.map((t) => ({
+    // Filter out trades excluded from stats (e.g., balance adjustments)
+    const analyticsTrades = filteredTrades.filter((t) => !t.excludeFromStats);
+    return analyticsTrades.map((t) => ({
       id: String(t.id),
       pair: t.symbol || "UNKNOWN",
       type: "Forex" as const, // Default type, can be enhanced later

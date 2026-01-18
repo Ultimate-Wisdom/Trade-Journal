@@ -127,12 +127,21 @@ export function setupAuth(app: Express) {
     passport.authenticate(
       "local",
       (err: any, user: SelectUser | false, info: any) => {
-        if (err) return next(err);
-        if (!user)
+        if (err) {
+          console.error("❌ Login authentication error:", err);
+          return next(err);
+        }
+        if (!user) {
+          console.log("⚠️  Login failed: Invalid credentials for username:", req.body.username);
           return res.status(401).json({ message: "Invalid credentials" });
+        }
 
         req.login(user, (err) => {
-          if (err) return next(err);
+          if (err) {
+            console.error("❌ Login session save error:", err);
+            return next(err);
+          }
+          console.log("✅ Login successful for user:", user.username);
           res.status(200).json(user);
         });
       },

@@ -66,6 +66,11 @@ export interface IStorage {
   // Trade Template Methods
   getTradeTemplates(userId: string): Promise<TradeTemplate[]>;
   createTradeTemplate(template: InsertTradeTemplate): Promise<TradeTemplate>;
+  updateTradeTemplate(
+    id: string,
+    userId: string,
+    updates: Partial<InsertTradeTemplate>,
+  ): Promise<TradeTemplate | undefined>;
   deleteTradeTemplate(id: string, userId: string): Promise<boolean>;
 
   // Session Store
@@ -259,6 +264,19 @@ export class DatabaseStorage implements IStorage {
   async createTradeTemplate(template: InsertTradeTemplate): Promise<TradeTemplate> {
     const [newTemplate] = await db.insert(tradeTemplates).values(template).returning();
     return newTemplate;
+  }
+
+  async updateTradeTemplate(
+    id: string,
+    userId: string,
+    updates: Partial<InsertTradeTemplate>,
+  ): Promise<TradeTemplate | undefined> {
+    const [updatedTemplate] = await db
+      .update(tradeTemplates)
+      .set(updates)
+      .where(and(eq(tradeTemplates.id, id), eq(tradeTemplates.userId, userId)))
+      .returning();
+    return updatedTemplate;
   }
 
   async deleteTradeTemplate(id: string, userId: string): Promise<boolean> {

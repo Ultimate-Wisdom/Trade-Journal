@@ -4,6 +4,7 @@ import {
   varchar,
   timestamp,
   numeric,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -51,6 +52,7 @@ export const trades = pgTable("trades", {
     .notNull(),
   accountId: varchar("account_id").references(() => accounts.id),
   tradeType: varchar("trade_type", { length: 20 }).default("TRADE").notNull(), // "TRADE" or "ADJUSTMENT"
+  excludeFromStats: boolean("exclude_from_stats").default(false).notNull(), // Exclude from analytics (e.g., balance adjustments)
   symbol: varchar("symbol", { length: 20 }),
   direction: varchar("direction", { length: 10 }),
   entryPrice: numeric("entry_price", { precision: 20, scale: 8 }),
@@ -183,6 +185,8 @@ export const tradeTemplates = pgTable("trade_templates", {
   riskPercent: numeric("risk_percent", { precision: 10, scale: 2 }),
   riskRewardRatio: varchar("risk_reward_ratio", { length: 20 }),
   notes: text("notes"),
+  rules: text("rules"), // JSON string array of rules
+  tweaks: text("tweaks"), // Notes on optimization/tweaks
   createdAt: timestamp("created_at").defaultNow(),
 });
 

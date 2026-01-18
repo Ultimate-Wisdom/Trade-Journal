@@ -64,6 +64,9 @@ export default function PNLCalendarDashboard() {
   const filteredTrades = useMemo(() => {
     if (!dbTrades) return [];
     return dbTrades.filter((trade) => {
+      // Exclude adjustments from analytics (they affect balance but not performance stats)
+      if (trade.excludeFromStats) return false;
+      
       // Apply account filter
       if (filters.accountId !== "all" && trade.accountId !== filters.accountId) return false;
       

@@ -118,9 +118,16 @@ export default function TradingAccounts() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/trades"] });
+      
+      // Safely extract adjustmentAmount with fallback
+      const adjustmentAmount = data?.adjustmentAmount;
+      const safeAmount = (adjustmentAmount !== undefined && adjustmentAmount !== null && !isNaN(adjustmentAmount)) 
+        ? adjustmentAmount 
+        : 0;
+      
       toast({
         title: "Balance Corrected",
-        description: `Adjustment of $${data.adjustmentAmount.toFixed(2)} applied to ${accountToCorrect?.name}`,
+        description: `Adjustment of $${safeAmount.toFixed(2)} applied to ${accountToCorrect?.name}`,
       });
       setBalanceCorrectionOpen(false);
       setAccountToCorrect(null);
@@ -416,7 +423,7 @@ export default function TradingAccounts() {
                 <p className="text-sm font-medium mb-2">Adjustment Preview:</p>
                 <div className="space-y-1 text-sm">
                   <p><strong>Account:</strong> {accountToCorrect.name}</p>
-                  <p><strong>Initial Balance:</strong> ${Number(accountToCorrect.initialBalance).toLocaleString()}</p>
+                  <p><strong>Initial Balance:</strong> ${Number(accountToCorrect.initialBalance || 0).toLocaleString()}</p>
                   <p><strong>New Balance:</strong> ${parseFloat(currentBalance || "0").toLocaleString()}</p>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">

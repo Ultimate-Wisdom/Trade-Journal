@@ -835,6 +835,7 @@ export async function registerRoutes(
         userId,
         accountId,
         tradeType: "ADJUSTMENT",
+        excludeFromStats: true, // Exclude from analytics but include in balance
         symbol: null,
         direction: null,
         entryPrice: null,
@@ -903,6 +904,120 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("❌ POST /api/templates failed:", error);
       res.status(500).json({ message: error.message || "Failed to create template" });
+    }
+  });
+
+  app.patch("/api/templates/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const updates = req.body;
+
+      const updatedTemplate = await storage.updateTradeTemplate(id, userId, updates);
+
+      if (!updatedTemplate) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+
+      res.json(updatedTemplate);
+    } catch (error: any) {
+      console.error("❌ PATCH /api/templates/:id failed:", error);
+      res.status(500).json({ message: error.message || "Failed to update template" });
+    }
+  });
+
+  // Get strategy performance stats (calculated from trades)
+  app.get("/api/templates/:id/stats", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      // Get template to find strategy name
+      const templates = await storage.getTradeTemplates(userId);
+      const template = templates.find((t) => t.id === id);
+
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+
+      // Get all trades for this user
+      const allTrades = await storage.getTrades(userId);
+
+      // Filter trades matching this strategy
+      // Match trades where trade.strategy equals template.name (the strategy identifier)
+      // Exclude adjustments from analytics
+      const strategyName = template.name;
+      const matchingTrades = allTrades.filter(
+        (trade) => trade.strategy === strategyName && !trade.excludeFromStats
+      );
+
+      // Calculate stats from matching trades
+      let totalPnl = 0;
+      let wins = 0;
+      let grossProfit = 0;
+      let grossLoss = 0;
+      let totalRR = 0;
+      let rrCount = 0;
+      const symbolStats: Record<string, { pnl: number; wins: number; total: number }> = {};
+
+      matchingTrades.forEach((trade) => {
+        const pnl = Number(trade.pnl || 0);
+        totalPnl += pnl;
+
+        if (pnl > 0) {
+          wins++;
+          grossProfit += pnl;
+        } else if (pnl < 0) {
+          grossLoss += Math.abs(pnl);
+        }
+
+        if (trade.rrr) {
+          totalRR += Number(trade.rrr);
+          rrCount++;
+        }
+
+        // Track symbol stats for "Best Asset" insight
+        const symbol = trade.symbol || "Unknown";
+        if (!symbolStats[symbol]) {
+          symbolStats[symbol] = { pnl: 0, wins: 0, total: 0 };
+        }
+        symbolStats[symbol].pnl += pnl;
+        symbolStats[symbol].total++;
+        if (pnl > 0) symbolStats[symbol].wins++;
+      });
+
+      const totalTrades = matchingTrades.length;
+      const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+      const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? grossProfit : 0) : grossProfit / grossLoss;
+      const avgRR = rrCount > 0 ? totalRR / rrCount : 0;
+
+      // Find best asset
+      let bestAsset = "—";
+      let bestAssetPnl = -Infinity;
+      Object.entries(symbolStats).forEach(([symbol, stats]) => {
+        if (stats.pnl > bestAssetPnl) {
+          bestAssetPnl = stats.pnl;
+          bestAsset = symbol;
+        }
+      });
+
+      res.json({
+        totalTrades,
+        totalPnl,
+        winRate,
+        profitFactor,
+        avgRR,
+        bestAsset: bestAsset === "—" ? "—" : bestAsset,
+      });
+    } catch (error: any) {
+      console.error("❌ GET /api/templates/:id/stats failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch strategy stats" });
     }
   });
 

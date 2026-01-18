@@ -21,6 +21,8 @@ const TradingAccounts = lazy(() => import("@/pages/TradingAccounts"));
 const Backtest = lazy(() => import("@/pages/Backtest"));
 const PNLCalendarDashboard = lazy(() => import("@/pages/PNLCalendarDashboard"));
 const Settings = lazy(() => import("@/pages/Settings"));
+const Strategies = lazy(() => import("@/pages/Strategies"));
+const StrategyPlaybook = lazy(() => import("@/pages/StrategyPlaybook"));
 const DebugTrades = lazy(() => import("@/pages/DebugTrades"));
 
 // Loading component
@@ -80,6 +82,8 @@ function Router() {
         <Route path="/new-entry/:id" component={NewEntry} />
         <Route path="/portfolio" component={Portfolio} />
         <Route path="/accounts" component={TradingAccounts} />
+        <Route path="/strategies" component={Strategies} />
+        <Route path="/playbook" component={StrategyPlaybook} />
         <Route path="/settings" component={Settings} />
         <Route path="/analytics" component={Dashboard} />
         <Route path="/debug" component={DebugTrades} />
