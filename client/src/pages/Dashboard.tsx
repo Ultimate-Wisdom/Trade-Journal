@@ -68,9 +68,13 @@ export default function Dashboard() {
       quantity: Number(t.quantity) || 0,
       pnl: t.pnl ? Number(t.pnl) : undefined,
       status: (t.status || "Open") as "Open" | "Closed" | "Pending",
-      date: t.createdAt
-        ? new Date(t.createdAt).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0],
+      date: (() => {
+        if (t.createdAt) {
+          const d = new Date(t.createdAt);
+          if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        }
+        return new Date().toISOString().split("T")[0];
+      })(),
       strategy: t.strategy || "",
       setup: t.setup || undefined,
       notes: t.notes || undefined,

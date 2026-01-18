@@ -73,8 +73,8 @@ export function PrivacyModeProvider({ children }: { children: ReactNode }) {
 }
 
 export function usePrivacyMode() {
-  // Safe fallback function
-  const getFallback = () => ({
+  // Fallback values if context is not available
+  const fallback = {
     isPrivacyMode: false,
     togglePrivacyMode: () => {
       if (process.env.NODE_ENV === "development") {
@@ -89,64 +89,35 @@ export function usePrivacyMode() {
           maximumFractionDigits: 2,
         });
       }
+      if (typeof value === "string") {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) return value;
+        return numValue.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      }
       return String(value);
     },
-  });
-
-  // Check if we're in a valid React context
-  if (typeof window === "undefined") {
-    // SSR - return fallback
-    return getFallback();
-  }
-
-  // Defensive checks for HMR and initial load - ensure React and useContext are available
-  // Check React first to avoid accessing properties on null
-  if (!React || typeof React !== "object" || React === null) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn("React is not available, using fallback values. This may occur during hot module reloading or initial page load.");
-    }
-    return getFallback();
-  }
-
-  // Safely get useContext - check if it exists before accessing
-  let useContextFn: typeof useContext | null = null;
-  
-  // First try the direct import
-  if (typeof useContext === "function") {
-    useContextFn = useContext;
-  }
-  // Then try React.useContext (but only if React is not null)
-  else if (React && typeof React === "object" && React !== null && typeof React.useContext === "function") {
-    useContextFn = React.useContext;
-  }
-
-  // If we still don't have a valid useContext function, return fallback
-  if (!useContextFn || typeof useContextFn !== "function") {
-    if (process.env.NODE_ENV === "development") {
-      console.warn("useContext is not available, using fallback values. This may occur during hot module reloading or initial page load.");
-    }
-    return getFallback();
-  }
+  };
 
   try {
-    // Attempt to use the context
-    const context = useContextFn(PrivacyModeContext);
+    const context = useContext(PrivacyModeContext);
     
-    // If context is undefined, provider is not mounted
+    // If context is undefined, provider is not mounted - return fallback
     if (context === undefined) {
       if (process.env.NODE_ENV === "development") {
         console.warn("PrivacyModeContext not available, using fallback values. Make sure PrivacyModeProvider wraps your app.");
       }
-      return getFallback();
+      return fallback;
     }
     
     return context;
   } catch (error: any) {
-    // Catch any errors (e.g., React not initialized, useContext is null)
-    // Silently return fallback to prevent app crash
+    // Catch any errors during context access and return fallback
     if (process.env.NODE_ENV === "development") {
       console.error("Error accessing PrivacyModeContext:", error?.message || error);
     }
-    return getFallback();
+    return fallback;
   }
 }

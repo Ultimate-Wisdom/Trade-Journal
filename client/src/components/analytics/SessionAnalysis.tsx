@@ -19,6 +19,18 @@ interface SessionStats {
 }
 
 export function SessionAnalysis({ trades }: SessionAnalysisProps) {
+  // Define getTimeRange before useMemo to avoid hoisting issues
+  const getTimeRange = (session: string): string => {
+    const ranges: Record<string, string> = {
+      "Asian": "00:00 - 08:00",
+      "London": "08:00 - 14:00",
+      "NY/London Overlap": "14:00 - 16:00",
+      "New York": "16:00 - 22:00",
+      "Late NY": "22:00 - 24:00",
+    };
+    return ranges[session] || "Unknown";
+  };
+
   const sessionStats = useMemo(() => {
     // Filter trades with entry time
     const tradesWithTime = trades.filter(t => t.entryTime);
@@ -100,17 +112,6 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
     // Sort by win rate descending
     return stats.sort((a, b) => b.winRate - a.winRate);
   }, [trades]);
-
-  const getTimeRange = (session: string): string => {
-    const ranges: Record<string, string> = {
-      "Asian": "00:00 - 08:00",
-      "London": "08:00 - 14:00",
-      "NY/London Overlap": "14:00 - 16:00",
-      "New York": "16:00 - 22:00",
-      "Late NY": "22:00 - 24:00",
-    };
-    return ranges[session] || "Unknown";
-  };
 
   if (sessionStats.length === 0) {
     return (

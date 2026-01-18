@@ -44,6 +44,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Account, Trade as DBTrade } from "@shared/schema";
 import { mockStrategies, calculateRRR, calculateSLPercent, calculateTPPercent } from "@/lib/mockData";
+import { safeParseFloat, validateNumericInput } from "@/lib/validationUtils";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -83,6 +84,60 @@ export default function NewEntry() {
   const [marketRegime, setMarketRegime] = useState("");
   const [entryDate, setEntryDate] = useState(""); // Date in YYYY-MM-DD format
   const [entryTime, setEntryTime] = useState(""); // Time in HH:MM format
+  
+  // Helper function to safely convert any value to Date object
+  const safeToDate = (value: any): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value;
+    }
+    if (typeof value === 'string') {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    try {
+      const date = new Date(String(value));
+      return isNaN(date.getTime()) ? null : date;
+    } catch {
+      return null;
+    }
+  };
+
+  // Helper function to safely convert Date to ISO string
+  const safeToISOString = (value: any): string | null => {
+    const date = safeToDate(value);
+    if (!date) return null;
+    try {
+      return new Date(date).toISOString();
+    } catch {
+      return null;
+    }
+  };
+  
+  // Ensure entryDate is always a string (safety check)
+  useEffect(() => {
+    if (entryDate && typeof entryDate !== 'string') {
+      console.warn("entryDate is not a string, converting:", entryDate, typeof entryDate);
+      try {
+        if (entryDate instanceof Date) {
+          // SAFE: Wrap in new Date() before calling toISOString()
+          const safeDate = new Date(entryDate.getTime());
+          if (typeof safeDate.toISOString === 'function' && !isNaN(safeDate.getTime())) {
+            setEntryDate(safeDate.toISOString().split('T')[0]);
+          } else {
+            // Fallback to string conversion
+            setEntryDate(String(entryDate));
+          }
+        } else {
+          // Not a Date object, just convert to string
+          setEntryDate(String(entryDate));
+        }
+      } catch (error) {
+        console.error("Error converting entryDate:", error);
+        setEntryDate(String(entryDate));
+      }
+    }
+  }, [entryDate]);
   const [psychologyTags, setPsychologyTags] = useState<string[]>([]);
   const [newStrategyOpen, setNewStrategyOpen] = useState(false);
   const [newStrategyName, setNewStrategyName] = useState("");
@@ -145,15 +200,37 @@ export default function NewEntry() {
       setConviction(tradeData.conviction ? Number(tradeData.conviction) : 3);
       setMarketRegime(tradeData.marketRegime || "");
       
-      // Load entry date and time
+      // Load entry date and time - SAFE conversion with explicit new Date() wrapper
       if (tradeData.entryDate) {
-        const date = new Date(tradeData.entryDate);
-        setEntryDate(date.toISOString().split('T')[0]); // YYYY-MM-DD
-        if (!tradeData.entryTime) {
-          setEntryTime(date.toTimeString().slice(0, 5)); // HH:MM
+        try {
+          // SAFE: Always wrap in new Date() to ensure it's a Date object before calling toISOString()
+          const dateValue = safeToDate(tradeData.entryDate);
+          
+          if (dateValue) {
+            // SAFE: dateValue is guaranteed to be a Date object from safeToDate()
+            const isoString = safeToISOString(dateValue);
+            if (isoString) {
+              const dateString = isoString.split('T')[0]; // YYYY-MM-DD
+              setEntryDate(String(dateString));
+              if (!tradeData.entryTime) {
+                // SAFE: dateValue is a Date object, toTimeString() is safe
+                const timeString = dateValue.toTimeString().slice(0, 5); // HH:MM
+                setEntryTime(String(timeString));
+              }
+            } else {
+              setEntryDate("");
+            }
+          } else {
+            setEntryDate("");
+          }
+        } catch (error) {
+          console.warn("Error parsing entryDate:", error);
+          setEntryDate("");
         }
+      } else {
+        setEntryDate("");
       }
-      setEntryTime(tradeData.entryTime || "");
+      setEntryTime(tradeData.entryTime ? String(tradeData.entryTime) : "");
     }
   }, [tradeData]);
 
@@ -179,18 +256,61 @@ export default function NewEntry() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!symbol.trim()) newErrors.symbol = "Symbol is required";
-    if (!entryPrice || parseFloat(entryPrice) <= 0) newErrors.entryPrice = "Valid entry price is required";
-    if (!quantity || parseFloat(quantity) <= 0) newErrors.quantity = "Valid quantity is required";
-    if (!stopLoss || parseFloat(stopLoss) <= 0) newErrors.stopLoss = "Valid stop loss is required";
-    if (!takeProfit || parseFloat(takeProfit) <= 0) newErrors.takeProfit = "Valid take profit is required";
+    // Validate symbol
+    if (!symbol.trim()) {
+      newErrors.symbol = "Symbol is required";
+    }
+    
+    // Validate entry price
+    const entryValidation = validateNumericInput(entryPrice, {
+      required: true,
+      min: 0.00001,
+      max: 1000000,
+      allowZero: false,
+    });
+    if (!entryValidation.isValid) {
+      newErrors.entryPrice = entryValidation.error || "Valid entry price is required";
+    }
+    
+    // Validate quantity
+    const quantityValidation = validateNumericInput(quantity, {
+      required: true,
+      min: 0.00001,
+      max: 1000000,
+      allowZero: false,
+    });
+    if (!quantityValidation.isValid) {
+      newErrors.quantity = quantityValidation.error || "Valid quantity is required";
+    }
+    
+    // Validate stop loss
+    const stopLossValidation = validateNumericInput(stopLoss, {
+      required: true,
+      min: 0.00001,
+      max: 1000000,
+      allowZero: false,
+    });
+    if (!stopLossValidation.isValid) {
+      newErrors.stopLoss = stopLossValidation.error || "Valid stop loss is required";
+    }
+    
+    // Validate take profit
+    const takeProfitValidation = validateNumericInput(takeProfit, {
+      required: true,
+      min: 0.00001,
+      max: 1000000,
+      allowZero: false,
+    });
+    if (!takeProfitValidation.isValid) {
+      newErrors.takeProfit = takeProfitValidation.error || "Valid take profit is required";
+    }
     
     // Validate SL/TP logic based on direction
-    const entry = parseFloat(entryPrice);
-    const sl = parseFloat(stopLoss);
-    const tp = parseFloat(takeProfit);
+    const entry = safeParseFloat(entryPrice);
+    const sl = safeParseFloat(stopLoss);
+    const tp = safeParseFloat(takeProfit);
     
-    if (entry && sl && tp) {
+    if (entry !== null && sl !== null && tp !== null) {
       if (direction === "Long") {
         if (sl >= entry) newErrors.stopLoss = "Stop loss must be below entry for Long";
         if (tp <= entry) newErrors.takeProfit = "Take profit must be above entry for Long";
@@ -204,9 +324,9 @@ export default function NewEntry() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const entry = parseFloat(entryPrice);
-  const sl = parseFloat(stopLoss);
-  const tp = parseFloat(takeProfit);
+  const entry = safeParseFloat(entryPrice);
+  const sl = safeParseFloat(stopLoss);
+  const tp = safeParseFloat(takeProfit);
 
   const rrr = entry && sl && tp ? calculateRRR(entry, sl, tp, direction) : "—";
   const slPercent = entry && sl ? calculateSLPercent(entry, sl, direction) : "—";
@@ -218,10 +338,70 @@ export default function NewEntry() {
       const url = editingId ? `/api/trades/${editingId}` : "/api/trades";
       const method = editingId ? "PATCH" : "POST";
       
+      // Ensure all values in payload are serializable (no Date objects)
+      // Clean the payload to ensure no Date objects or functions
+      // SAFE: Always wrap dates in new Date() before calling toISOString()
+      const cleanPayload: Record<string, any> = {};
+      for (const [key, value] of Object.entries(payload)) {
+        if (value === null || value === undefined) {
+          cleanPayload[key] = value;
+        } else if (value instanceof Date) {
+          // SAFE: Wrap in new Date() before calling toISOString()
+          try {
+            const safeDate = new Date(value.getTime());
+            if (typeof safeDate.toISOString === 'function' && !isNaN(safeDate.getTime())) {
+              cleanPayload[key] = safeDate.toISOString();
+            } else {
+              cleanPayload[key] = String(value);
+            }
+          } catch (error) {
+            console.error(`Error converting Date for key ${key}:`, error);
+            cleanPayload[key] = String(value);
+          }
+        } else if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+          // Recursively clean nested objects, but avoid Date-like objects
+          try {
+            // Check if it's a Date-like object but not an actual Date
+            if (typeof (value as any).toISOString === 'function' && !(value instanceof Date)) {
+              // It has toISOString but isn't a Date - SAFE: wrap in new Date() first
+              try {
+                const safeDate = new Date(value as any);
+                if (!isNaN(safeDate.getTime())) {
+                  cleanPayload[key] = safeDate.toISOString();
+                } else {
+                  cleanPayload[key] = String(value);
+                }
+              } catch {
+                cleanPayload[key] = String(value);
+              }
+            } else {
+              // Safe to stringify
+              cleanPayload[key] = JSON.parse(JSON.stringify(value, (k, v) => {
+                // Replacer function - SAFE: wrap Date objects in new Date() before toISOString()
+                if (v instanceof Date) {
+                  try {
+                    return new Date(v.getTime()).toISOString();
+                  } catch {
+                    return String(v);
+                  }
+                }
+                return v;
+              }));
+            }
+          } catch (error) {
+            console.error(`Error cleaning object for key ${key}:`, error);
+            cleanPayload[key] = String(value);
+          }
+        } else {
+          cleanPayload[key] = value;
+        }
+      }
+      const serializablePayload = cleanPayload;
+      
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(serializablePayload),
       });
 
       if (!res.ok) {
@@ -249,14 +429,20 @@ export default function NewEntry() {
   });
 
   const handleSaveTrade = (status: "Open" | "Closed" = "Closed") => {
-    if (!validateForm()) {
-      toast({
-        title: "Validation Error",
-        description: "Please fix the errors in the form",
-        variant: "destructive",
-      });
-      return;
-    }
+    try {
+      // Debug: Log entryDate state before processing
+      console.log("handleSaveTrade START - entryDate:", entryDate, typeof entryDate, entryDate instanceof Date);
+      console.log("handleSaveTrade START - entryTime:", entryTime, typeof entryTime);
+      console.log("handleSaveTrade START - editingId:", editingId);
+      
+      if (!validateForm()) {
+        toast({
+          title: "Validation Error",
+          description: "Please fix the errors in the form",
+          variant: "destructive",
+        });
+        return;
+      }
 
     // Note: psychologyTags is not in the database schema, so we'll store it in notes if needed
     const notesWithPsychology = psychologyTags.length > 0
@@ -268,36 +454,112 @@ export default function NewEntry() {
     if (riskAmount && accountId && accounts) {
       const account = accounts.find(a => a.id === accountId);
       if (account && account.initialBalance) {
-        const balance = parseFloat(String(account.initialBalance));
-        const risk = parseFloat(riskAmount);
-        if (balance > 0) {
+        const balance = safeParseFloat(account.initialBalance);
+        const risk = safeParseFloat(riskAmount);
+        if (balance !== null && risk !== null && balance > 0) {
           calculatedRiskPercent = (risk / balance) * 100;
         }
       }
     }
 
     // Combine entry date and time if provided
+    // SAFE: Always wrap in new Date() before calling toISOString()
     let entryDateTimeISO = null;
-    if (entryDate) {
-      if (entryTime) {
-        entryDateTimeISO = `${entryDate}T${entryTime}:00`;
-      } else {
-        entryDateTimeISO = `${entryDate}T12:00:00`; // Default to noon if no time specified
+    if (entryDate && typeof entryDate === 'string' && entryDate.trim() !== '') {
+      try {
+        // Ensure entryDate is a string in YYYY-MM-DD format
+        const dateStr = String(entryDate).trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          console.warn("Invalid date format:", dateStr);
+          entryDateTimeISO = null;
+        } else {
+          let dateString: string;
+          if (entryTime && typeof entryTime === 'string' && entryTime.trim() !== '') {
+            // Ensure time is in HH:MM format (time input should already be in this format)
+            const timeStr = String(entryTime).trim();
+            const timeParts = timeStr.split(':');
+            if (timeParts.length === 2 && /^\d{2}:\d{2}$/.test(timeStr)) {
+              dateString = `${dateStr}T${timeStr}:00`;
+            } else {
+              // Fallback if time format is unexpected
+              dateString = `${dateStr}T12:00:00`;
+            }
+          } else {
+            dateString = `${dateStr}T12:00:00`; // Default to noon if no time specified
+          }
+          
+          // SAFE: Create Date object and validate before calling toISOString()
+          const dateObj = new Date(dateString);
+          if (!isNaN(dateObj.getTime()) && dateObj instanceof Date) {
+            // SAFE: dateObj is guaranteed to be a valid Date object
+            // Wrap in new Date() again as extra safeguard before toISOString()
+            const safeDateObj = new Date(dateObj.getTime());
+            try {
+              const isoString = safeDateObj.toISOString();
+              if (typeof isoString === 'string') {
+                entryDateTimeISO = isoString;
+              } else {
+                entryDateTimeISO = null;
+              }
+            } catch (toISOError) {
+              console.error("Error calling toISOString() on date:", toISOError);
+              entryDateTimeISO = null;
+            }
+          } else {
+            // Invalid date, skip it
+            entryDateTimeISO = null;
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing entry date/time:", error);
+        entryDateTimeISO = null;
       }
     }
 
-    const payload = {
+    // Parse numeric values - validation already passed, so these are guaranteed to be valid numbers
+    const entryPriceNum = safeParseFloat(entryPrice) ?? 0;
+    const quantityNum = safeParseFloat(quantity) ?? 0;
+    const stopLossNum = safeParseFloat(stopLoss) ?? 0;
+    const takeProfitNum = safeParseFloat(takeProfit) ?? 0;
+
+    // Ensure entryDateTimeISO is a string (not a Date object) before JSON.stringify
+    // Double-check that entryDateTimeISO is actually a string
+    let entryDateString: string | null = null;
+    if (entryDateTimeISO) {
+      if (typeof entryDateTimeISO === 'string') {
+        entryDateString = entryDateTimeISO;
+      } else if (entryDateTimeISO instanceof Date) {
+        // Safety fallback - SAFE: wrap in new Date() before calling toISOString()
+        try {
+          const safeDate = new Date(entryDateTimeISO.getTime());
+          if (!isNaN(safeDate.getTime()) && typeof safeDate.toISOString === 'function') {
+            entryDateString = safeDate.toISOString();
+          } else {
+            entryDateString = null;
+          }
+        } catch (error) {
+          console.error("Error converting Date to ISO string:", error);
+          entryDateString = null;
+        }
+      } else {
+        // Convert to string as fallback
+        entryDateString = String(entryDateTimeISO);
+      }
+    }
+    
+    // Verify all payload values are serializable before creating the payload object
+    const payload: Record<string, any> = {
       accountId: accountId || null,
-      symbol: symbol.toUpperCase().trim(),
+      symbol: (symbol || "").toUpperCase().trim(),
       direction,
-      entryPrice: parseFloat(entryPrice),
-      quantity: parseFloat(quantity),
-      stopLoss: parseFloat(stopLoss),
-      takeProfit: parseFloat(takeProfit),
-      swap: swap ? parseFloat(swap) : null,
-      commission: commission ? parseFloat(commission) : null,
-      pnl: pnl ? parseFloat(pnl) : null,
-      riskAmount: riskAmount ? parseFloat(riskAmount) : null,
+      entryPrice: entryPriceNum,
+      quantity: quantityNum,
+      stopLoss: stopLossNum || null,
+      takeProfit: takeProfitNum || null,
+      swap: swap ? safeParseFloat(swap) : null,
+      commission: commission ? safeParseFloat(commission) : null,
+      pnl: pnl ? safeParseFloat(pnl) : null,
+      riskAmount: riskAmount ? safeParseFloat(riskAmount) : null,
       riskPercent: calculatedRiskPercent,
       exitCondition: exitCondition || null,
       exitReason: exitReason || null,
@@ -308,10 +570,28 @@ export default function NewEntry() {
       marketRegime: marketRegime || null,
       conviction: conviction || null,
       entryTime: entryTime || null,
-      entryDate: entryDateTimeISO,
+      entryDate: entryDateString,
     };
 
-    saveTradeMutation.mutate(payload);
+      console.log("handleSaveTrade - Final payload entryDate:", payload.entryDate, typeof payload.entryDate);
+      
+      saveTradeMutation.mutate(payload);
+    } catch (error: any) {
+      console.error("Error in handleSaveTrade:", error);
+      console.error("Error stack:", error?.stack);
+      console.error("Error details:", {
+        message: error?.message,
+        name: error?.name,
+        entryDate: entryDate,
+        entryDateType: typeof entryDate,
+        entryDateIsDate: entryDate instanceof Date
+      });
+      toast({
+        title: "Error",
+        description: error?.message || "An unexpected error occurred while saving the trade",
+        variant: "destructive",
+      });
+    }
   };
 
   const isLoading = isLoadingAccounts || isLoadingTrade;
@@ -867,9 +1147,16 @@ export default function NewEntry() {
                           <Input
                             id="entryDate"
                             type="date"
-                            value={entryDate}
-                            onChange={(e) => setEntryDate(e.target.value)}
-                            max={new Date().toISOString().split('T')[0]}
+                            value={entryDate || ""}
+                            onChange={(e) => {
+                              // Ensure we're always setting a string value
+                              const value = e.target.value || "";
+                              setEntryDate(String(value));
+                            }}
+                            max={(() => {
+                              const today = new Date();
+                              return today.toISOString().split('T')[0];
+                            })()}
                             className="font-mono"
                           />
                           <p className="text-xs text-muted-foreground">

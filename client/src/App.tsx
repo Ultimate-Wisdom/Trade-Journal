@@ -93,33 +93,16 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <ErrorBoundary
-          fallback={
-            <div className="flex min-h-screen items-center justify-center bg-background p-4">
-              <div className="text-center">
-                <p className="text-lg font-semibold mb-2">Privacy Mode Error</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  There was an issue initializing privacy mode. The app will continue without it.
-                </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-                >
-                  Reload Page
-                </button>
-              </div>
-            </div>
-          }
-        >
-          <PrivacyModeProvider>
+        <PrivacyModeProvider>
+          <ErrorBoundary>
             <TooltipProvider>
               <Router />
               <Toaster />
               <NetworkStatus />
               <InstallPrompt />
             </TooltipProvider>
-          </PrivacyModeProvider>
-        </ErrorBoundary>
+          </ErrorBoundary>
+        </PrivacyModeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

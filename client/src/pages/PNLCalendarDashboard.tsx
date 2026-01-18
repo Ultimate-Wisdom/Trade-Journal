@@ -76,7 +76,9 @@ export default function PNLCalendarDashboard() {
       // Apply month filter
       const tradeDate = trade.entryDate || trade.createdAt;
       if (!tradeDate) return false;
-      const tradeDateStr = new Date(tradeDate).toISOString();
+      const dateObj = new Date(tradeDate);
+      if (isNaN(dateObj.getTime())) return false; // Skip invalid dates
+      const tradeDateStr = dateObj.toISOString();
       const tradeMonth = tradeDateStr.substring(0, 7);
       if (tradeMonth !== filters.month) return false;
       
@@ -93,7 +95,17 @@ export default function PNLCalendarDashboard() {
       quantity: Number(t.quantity) || 0,
       pnl: t.pnl ? Number(t.pnl) : undefined,
       status: t.status as "Open" | "Closed" | "Pending",
-      date: t.entryDate ? new Date(t.entryDate).toISOString().split("T")[0] : t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      date: (() => {
+        if (t.entryDate) {
+          const d = new Date(t.entryDate);
+          if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        }
+        if (t.createdAt) {
+          const d = new Date(t.createdAt);
+          if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        }
+        return new Date().toISOString().split("T")[0];
+      })(),
       strategy: t.strategy || "Unknown",
     }));
   }, [dbTrades, filters]);

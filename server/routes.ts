@@ -4,6 +4,17 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import {
+  validateTradeCreation,
+  validateSymbol,
+  validateDirection,
+  validateNumeric,
+  validateStatus,
+  validateString,
+  validateExitCondition,
+  validateDate,
+  sanitizeString,
+} from "./validation";
 
 export async function registerRoutes(
   app: Express,
@@ -76,21 +87,52 @@ export async function registerRoutes(
       if (!req.isAuthenticated()) return res.sendStatus(401);
       if (!storage) throw new Error("Storage engine is undefined");
 
-      const { name, type, initialBalance } = req.body;
+      const { name, type, initialBalance, color } = req.body;
 
-      if (!name || !type || !initialBalance) {
-        return res.status(400).json({
-          message: "Missing required fields: name, type, initialBalance",
-        });
+      // Validate name
+      const nameResult = validateString(name, "Account name", {
+        required: true,
+        minLength: 1,
+        maxLength: 100,
+      });
+      if (!nameResult.isValid) {
+        return res.status(400).json({ message: nameResult.error });
+      }
+
+      // Validate type
+      const typeResult = validateString(type, "Account type", {
+        required: true,
+        minLength: 1,
+        maxLength: 50,
+      });
+      if (!typeResult.isValid) {
+        return res.status(400).json({ message: typeResult.error });
+      }
+
+      // Validate initial balance
+      const balanceResult = validateNumeric(initialBalance, "Initial balance", {
+        required: true,
+        min: 0,
+        max: 100000000,
+        allowZero: true,
+      });
+      if (!balanceResult.isValid) {
+        return res.status(400).json({ message: balanceResult.error });
+      }
+
+      // Validate color (optional, hex format)
+      if (color && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+        return res.status(400).json({ message: "Color must be a valid hex code (e.g., #2563eb)" });
       }
 
       const userId = req.user!.id;
 
       const newAccount = await storage.createAccount({
-        name,
-        type,
+        name: sanitizeString(name.trim()),
+        type: sanitizeString(type.trim()),
         userId,
         initialBalance: String(initialBalance),
+        color: color || "#2563eb",
       });
 
       console.log(`✅ Account created: ${newAccount.name} (${newAccount.id})`);
@@ -204,6 +246,7 @@ export async function registerRoutes(
 
       const {
         accountId,
+        tradeType,
         symbol,
         direction,
         entryPrice,
@@ -212,47 +255,114 @@ export async function registerRoutes(
         takeProfit,
         swap,
         commission,
+        pnl,
         status,
         notes,
         strategy,
         setup,
         marketRegime,
         conviction,
+        riskAmount,
+        riskPercent,
+        exitCondition,
+        exitReason,
+        entryTime,
+        entryDate,
       } = req.body;
 
-      if (!symbol || !direction || !entryPrice || !quantity) {
-        return res.status(400).json({
-          message:
-            "Missing required fields: symbol, direction, entryPrice, quantity",
-        });
+      // Validate the complete trade data
+      const validationResult = validateTradeCreation(req.body);
+      if (!validationResult.isValid) {
+        return res.status(400).json({ message: validationResult.error });
       }
+
+      // Additional field validations for optional fields
+      if (status) {
+        const statusResult = validateStatus(status);
+        if (!statusResult.isValid) {
+          return res.status(400).json({ message: statusResult.error });
+        }
+      }
+
+      if (exitCondition) {
+        const exitResult = validateExitCondition(exitCondition);
+        if (!exitResult.isValid) {
+          return res.status(400).json({ message: exitResult.error });
+        }
+      }
+
+      // Ensure entryDate is properly formatted for database (timestamp field)
+      // Drizzle's timestamp column expects a Date object (it calls toISOString internally)
+      let processedEntryDate: Date | null = null;
+      if (entryDate) {
+        const dateResult = validateDate(entryDate, "Entry date", false);
+        if (!dateResult.isValid) {
+          return res.status(400).json({ message: dateResult.error });
+        }
+        // Convert to Date object for Drizzle timestamp field
+        // Drizzle's PgTimestamp.mapToDriverValue expects a Date object
+        try {
+          let dateObj: Date;
+          if (entryDate instanceof Date) {
+            dateObj = entryDate;
+          } else if (typeof entryDate === 'string') {
+            // Parse ISO string to Date object
+            dateObj = new Date(entryDate);
+          } else {
+            // Try to convert to string first, then to Date
+            dateObj = new Date(String(entryDate));
+          }
+          
+          // Validate the Date object
+          if (!isNaN(dateObj.getTime())) {
+            processedEntryDate = dateObj;
+          } else {
+            return res.status(400).json({ message: "Invalid entry date - date is not valid" });
+          }
+        } catch (error) {
+          console.error("Error processing entryDate:", error);
+          return res.status(400).json({ message: "Invalid entry date format" });
+        }
+      }
+
+      // Sanitize text inputs
+      const sanitizedNotes = notes ? sanitizeString(notes) : null;
+      const sanitizedStrategy = strategy ? sanitizeString(strategy) : null;
+      const sanitizedSetup = setup ? sanitizeString(setup) : null;
+      const sanitizedExitReason = exitReason ? sanitizeString(exitReason) : null;
 
       const userId = req.user!.id;
 
       const newTrade = await storage.createTrade({
         userId,
         accountId: accountId || null,
-        symbol,
-        direction,
-        entryPrice: String(entryPrice),
-        quantity: String(quantity),
+        tradeType: tradeType || "TRADE",
+        symbol: symbol ? symbol.trim().toUpperCase() : null,
+        direction: direction || null,
+        entryPrice: entryPrice ? String(entryPrice) : null,
+        quantity: quantity ? String(quantity) : null,
         stopLoss: stopLoss ? String(stopLoss) : null,
         takeProfit: takeProfit ? String(takeProfit) : null,
         swap: swap ? String(swap) : null,
         commission: commission ? String(commission) : null,
+        pnl: pnl ? String(pnl) : null,
+        riskAmount: riskAmount ? String(riskAmount) : null,
+        riskPercent: riskPercent ? String(riskPercent) : null,
+        exitCondition: exitCondition || null,
+        exitReason: sanitizedExitReason,
         status: status || "Open",
-        notes: notes || null,
-        strategy: strategy || null,
-        setup: setup || null,
+        notes: sanitizedNotes,
+        strategy: sanitizedStrategy,
+        setup: sanitizedSetup,
         marketRegime: marketRegime || null,
         conviction: conviction ? String(conviction) : null,
+        entryTime: entryTime || null,
+        entryDate: processedEntryDate || null,
         exitPrice: null,
-        pnl: null,
         rrr: null,
-        riskPercent: null,
       });
 
-      console.log(`✅ Trade created: ${newTrade.symbol} (${newTrade.id})`);
+      console.log(`✅ Trade created: ${newTrade.symbol || 'ADJUSTMENT'} (${newTrade.id})`);
       res.json(newTrade);
     } catch (error: any) {
       console.error("❌ POST /api/trades failed:", error);
@@ -271,7 +381,127 @@ export async function registerRoutes(
       const userId = req.user!.id;
       const updates = req.body;
 
-      // Convert numeric fields to strings
+      // DEBUG: Log incoming entryDate to see what we're receiving
+      if (updates.entryDate !== undefined) {
+        console.log("PATCH - Incoming entryDate:", {
+          value: updates.entryDate,
+          type: typeof updates.entryDate,
+          isDate: updates.entryDate instanceof Date,
+          constructor: updates.entryDate?.constructor?.name,
+          hasToISOString: typeof updates.entryDate?.toISOString === 'function'
+        });
+      }
+
+      // Validate updated fields
+      if (updates.symbol !== undefined) {
+        const symbolResult = validateSymbol(updates.symbol);
+        if (!symbolResult.isValid) {
+          return res.status(400).json({ message: symbolResult.error });
+        }
+        updates.symbol = updates.symbol.trim().toUpperCase();
+      }
+
+      if (updates.direction !== undefined) {
+        const directionResult = validateDirection(updates.direction);
+        if (!directionResult.isValid) {
+          return res.status(400).json({ message: directionResult.error });
+        }
+      }
+
+      if (updates.status !== undefined) {
+        const statusResult = validateStatus(updates.status);
+        if (!statusResult.isValid) {
+          return res.status(400).json({ message: statusResult.error });
+        }
+      }
+
+      if (updates.exitCondition !== undefined) {
+        const exitResult = validateExitCondition(updates.exitCondition);
+        if (!exitResult.isValid) {
+          return res.status(400).json({ message: exitResult.error });
+        }
+      }
+
+      // Process entryDate if provided
+      // Drizzle's PgTimestamp expects a Date object (calls toISOString internally)
+      let processedEntryDate: Date | null | undefined = undefined;
+      if (updates.entryDate !== undefined) {
+        if (updates.entryDate === null) {
+          processedEntryDate = null;
+        } else {
+          const dateResult = validateDate(updates.entryDate, "Entry date", false);
+          if (!dateResult.isValid) {
+            return res.status(400).json({ message: dateResult.error });
+          }
+          // Try both approaches: pass as Date object (which Drizzle expects)
+          try {
+            let dateObj: Date;
+            if (updates.entryDate instanceof Date) {
+              dateObj = updates.entryDate;
+            } else if (typeof updates.entryDate === 'string') {
+              // Parse ISO string to Date object - Drizzle expects Date, not string
+              dateObj = new Date(updates.entryDate);
+            } else {
+              // Try to convert to string first, then to Date
+              dateObj = new Date(String(updates.entryDate));
+            }
+            
+            // Validate the Date object
+            if (!isNaN(dateObj.getTime()) && dateObj instanceof Date) {
+              // Ensure it's a proper Date object instance
+              processedEntryDate = new Date(dateObj.getTime()); // Create fresh Date instance
+              console.log("PATCH - Converted entryDate to Date:", processedEntryDate, typeof processedEntryDate, processedEntryDate instanceof Date);
+            } else {
+              return res.status(400).json({ message: "Invalid entry date - date is not valid" });
+            }
+          } catch (error) {
+            console.error("Error processing entryDate in PATCH:", error);
+            return res.status(400).json({ message: "Invalid entry date format" });
+          }
+        }
+      }
+
+      // Validate numeric fields
+      const numericValidations: Array<{field: string, name: string, required?: boolean}> = [
+        { field: "entryPrice", name: "Entry price" },
+        { field: "exitPrice", name: "Exit price" },
+        { field: "quantity", name: "Quantity" },
+        { field: "stopLoss", name: "Stop loss" },
+        { field: "takeProfit", name: "Take profit" },
+        { field: "pnl", name: "PnL" },
+        { field: "riskAmount", name: "Risk amount" },
+        { field: "riskPercent", name: "Risk percent" },
+      ];
+
+      for (const validation of numericValidations) {
+        if (updates[validation.field] !== undefined && updates[validation.field] !== null) {
+          const result = validateNumeric(updates[validation.field], validation.name, {
+            required: false,
+            min: -1000000,
+            max: 1000000,
+            allowZero: validation.field === "pnl",
+          });
+          if (!result.isValid) {
+            return res.status(400).json({ message: result.error });
+          }
+        }
+      }
+
+      // Sanitize text fields
+      if (updates.notes !== undefined) {
+        updates.notes = updates.notes ? sanitizeString(updates.notes) : null;
+      }
+      if (updates.strategy !== undefined) {
+        updates.strategy = updates.strategy ? sanitizeString(updates.strategy) : null;
+      }
+      if (updates.setup !== undefined) {
+        updates.setup = updates.setup ? sanitizeString(updates.setup) : null;
+      }
+      if (updates.exitReason !== undefined) {
+        updates.exitReason = updates.exitReason ? sanitizeString(updates.exitReason) : null;
+      }
+
+      // Convert numeric fields to strings for database
       const numericFields = [
         "entryPrice",
         "exitPrice",
@@ -282,6 +512,7 @@ export async function registerRoutes(
         "commission",
         "pnl",
         "rrr",
+        "riskAmount",
         "riskPercent",
         "conviction",
       ];
@@ -291,7 +522,45 @@ export async function registerRoutes(
         }
       });
 
-      const updatedTrade = await storage.updateTrade(id, userId, updates);
+      // Remove entryDate from updates to handle it separately at the very end
+      // This prevents any numeric conversion or other processing from affecting it
+      delete updates.entryDate;
+      delete updates.createdAt; // Remove any other timestamp fields
+
+      // Log the final updates object (without entryDate)
+      console.log("PATCH - Final updates object keys (before entryDate):", Object.keys(updates));
+
+      // Create the final Date object RIGHT BEFORE passing to storage.updateTrade
+      // This ensures it's a fresh Date instance that hasn't been mutated
+      let finalEntryDate: Date | undefined = undefined;
+      if (processedEntryDate !== undefined && processedEntryDate !== null) {
+        // Create a completely fresh Date object from the processed one
+        // Use getTime() to get a primitive, then create a new Date - this ensures clean prototype chain
+        finalEntryDate = new Date(processedEntryDate.getTime());
+        
+        // Final validation
+        if (!(finalEntryDate instanceof Date) || isNaN(finalEntryDate.getTime())) {
+          console.error("PATCH - Final entryDate validation failed:", finalEntryDate);
+          finalEntryDate = undefined;
+        } else {
+          console.log("PATCH - Final entryDate check before storage.updateTrade:", {
+            value: finalEntryDate,
+            type: typeof finalEntryDate,
+            isDate: finalEntryDate instanceof Date,
+            hasToISOString: typeof finalEntryDate.toISOString === 'function',
+            isValid: !isNaN(finalEntryDate.getTime()),
+            isoString: finalEntryDate.toISOString()
+          });
+        }
+      }
+
+      // Only add entryDate to updates at the very last moment, right before calling storage
+      const finalUpdates = { ...updates };
+      if (finalEntryDate !== undefined) {
+        finalUpdates.entryDate = finalEntryDate;
+      }
+
+      const updatedTrade = await storage.updateTrade(id, userId, finalUpdates);
 
       if (!updatedTrade) {
         return res.status(404).json({ message: "Trade not found" });
@@ -513,6 +782,28 @@ export async function registerRoutes(
       const { currentBalance, reason } = req.body;
       const userId = req.user!.id;
 
+      // Validate current balance
+      const balanceResult = validateNumeric(currentBalance, "Current balance", {
+        required: true,
+        min: 0,
+        max: 100000000,
+        allowZero: true,
+      });
+      if (!balanceResult.isValid) {
+        return res.status(400).json({ message: balanceResult.error });
+      }
+
+      // Validate reason (optional but has max length)
+      if (reason) {
+        const reasonResult = validateString(reason, "Reason", {
+          required: false,
+          maxLength: 500,
+        });
+        if (!reasonResult.isValid) {
+          return res.status(400).json({ message: reasonResult.error });
+        }
+      }
+
       // Get account to calculate difference
       const account = await storage.getAccount(accountId, userId);
       if (!account) {
@@ -523,12 +814,21 @@ export async function registerRoutes(
       const trades = await storage.getTrades(userId);
       const accountTrades = trades.filter(t => t.accountId === accountId);
       const totalPnl = accountTrades.reduce((sum, trade) => {
-        return sum + (trade.pnl ? parseFloat(String(trade.pnl)) : 0);
+        const pnlValue = trade.pnl ? parseFloat(String(trade.pnl)) : 0;
+        return isNaN(pnlValue) ? sum : sum + pnlValue;
       }, 0);
       const systemBalance = parseFloat(String(account.initialBalance)) + totalPnl;
 
       // Calculate adjustment needed
-      const adjustmentAmount = parseFloat(currentBalance) - systemBalance;
+      const currentBalanceNum = parseFloat(String(currentBalance));
+      const adjustmentAmount = currentBalanceNum - systemBalance;
+
+      // Prevent excessive adjustments (safety check)
+      if (Math.abs(adjustmentAmount) > 1000000) {
+        return res.status(400).json({
+          message: "Adjustment amount is too large. Please verify your balance.",
+        });
+      }
 
       // Create adjustment entry
       const adjustmentEntry = {
@@ -539,10 +839,25 @@ export async function registerRoutes(
         direction: null,
         entryPrice: null,
         quantity: null,
+        stopLoss: null,
+        takeProfit: null,
+        swap: null,
+        commission: null,
+        exitPrice: null,
+        rrr: null,
+        riskAmount: null,
+        riskPercent: null,
+        exitCondition: null,
+        exitReason: null,
         pnl: String(adjustmentAmount),
         status: "Closed",
-        notes: reason || "Balance correction",
-        entryDate: new Date().toISOString(),
+        notes: reason ? sanitizeString(reason) : "Balance correction",
+        strategy: null,
+        setup: null,
+        marketRegime: null,
+        conviction: null,
+        entryTime: null,
+        entryDate: new Date(), // Date object for Drizzle timestamp column
       };
 
       const createdAdjustment = await storage.createTrade(adjustmentEntry);
