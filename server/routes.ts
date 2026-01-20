@@ -207,7 +207,10 @@ export async function registerRoutes(
       if (!storage) throw new Error("Storage engine is undefined");
 
       const userId = req.user!.id;
-      const trades = await storage.getTrades(userId);
+      // Default to excluding adjustments (include_adjustments=false)
+      // Set include_adjustments=true to get all trades including balance corrections
+      const includeAdjustments = req.query.include_adjustments === "true";
+      const trades = await storage.getTrades(userId, includeAdjustments);
       res.json(trades);
     } catch (error: any) {
       console.error("❌ GET /api/trades failed:", error);
@@ -811,7 +814,8 @@ export async function registerRoutes(
       }
 
       // Calculate system balance (initial + all P&L)
-      const trades = await storage.getTrades(userId);
+      // Include adjustments for balance calculation
+      const trades = await storage.getTrades(userId, true);
       const accountTrades = trades.filter(t => t.accountId === accountId);
       const totalPnl = accountTrades.reduce((sum, trade) => {
         const pnlValue = trade.pnl ? parseFloat(String(trade.pnl)) : 0;
@@ -946,8 +950,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Template not found" });
       }
 
-      // Get all trades for this user
-      const allTrades = await storage.getTrades(userId);
+      // Get all trades for this user (excluding adjustments for stats)
+      const allTrades = await storage.getTrades(userId, false);
 
       // Filter trades matching this strategy
       // Match trades where trade.strategy equals template.name (the strategy identifier)
@@ -1038,6 +1042,87 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("❌ DELETE /api/templates/:id failed:", error);
       res.status(500).json({ message: error.message || "Failed to delete template" });
+    }
+  });
+
+  // ==========================================
+  // STRATEGY MIGRATION ROUTES
+  // ==========================================
+  
+  // Get all unique strategy names from trades (including all trades for migration purposes)
+  app.get("/api/trades/strategies", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const userId = req.user!.id;
+      // Include ALL trades (including adjustments) to find all strategy names
+      // This ensures we can find "orphaned" strategy names that exist in trades but not in Playbook
+      const allTrades = await storage.getTrades(userId, true); // Include adjustments
+      
+      // Get unique strategy names (excluding null/empty)
+      const strategySet = new Set<string>();
+      allTrades.forEach(trade => {
+        if (trade.strategy && trade.strategy.trim()) {
+          strategySet.add(trade.strategy.trim());
+        }
+      });
+      
+      const strategies = Array.from(strategySet).sort();
+      res.json(strategies);
+    } catch (error: any) {
+      console.error("❌ GET /api/trades/strategies failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch strategies" });
+    }
+  });
+
+  // Bulk update strategy names in trades
+  app.post("/api/trades/migrate-strategy", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { oldName, newName } = req.body;
+      const userId = req.user!.id;
+
+      // Validate inputs
+      if (!oldName || !newName) {
+        return res.status(400).json({ message: "Both oldName and newName are required" });
+      }
+
+      if (oldName === newName) {
+        return res.status(400).json({ message: "Old name and new name cannot be the same" });
+      }
+
+      // Validate strings
+      const oldNameResult = validateString(oldName, "Old strategy name", {
+        required: true,
+        minLength: 1,
+        maxLength: 200,
+      });
+      if (!oldNameResult.isValid) {
+        return res.status(400).json({ message: oldNameResult.error });
+      }
+
+      const newNameResult = validateString(newName, "New strategy name", {
+        required: true,
+        minLength: 1,
+        maxLength: 200,
+      });
+      if (!newNameResult.isValid) {
+        return res.status(400).json({ message: newNameResult.error });
+      }
+
+      // Perform bulk update
+      const updatedCount = await storage.migrateStrategy(userId, oldName.trim(), newName.trim());
+
+      res.json({
+        message: `Successfully migrated ${updatedCount} trade(s) from "${oldName}" to "${newName}"`,
+        updatedCount,
+      });
+    } catch (error: any) {
+      console.error("❌ POST /api/trades/migrate-strategy failed:", error);
+      res.status(500).json({ message: error.message || "Failed to migrate strategy" });
     }
   });
 

@@ -46,7 +46,7 @@ import {
   Calendar as CalendarIcon,
 } from "lucide-react";
 import { Link, useRoute, useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Account, Trade as DBTrade, TradeTemplate } from "@shared/schema";
 import { calculateRRR, calculateSLPercent, calculateTPPercent } from "@/lib/mockData";
@@ -162,8 +162,10 @@ export default function NewEntry() {
     queryKey: ["/api/templates"],
   });
 
-  // Extract strategy names from playbook templates
-  const playbookStrategies = playbookTemplates.map((template) => template.name);
+  // Extract strategy names from playbook templates - memoized to prevent infinite loops
+  const playbookStrategies = useMemo(() => {
+    return playbookTemplates.map((template) => template.name);
+  }, [playbookTemplates]);
   
   // Track if user is entering a custom strategy (not from Playbook)
   const [isCustomStrategy, setIsCustomStrategy] = useState(false);
@@ -179,80 +181,94 @@ export default function NewEntry() {
     },
   });
 
-  // Load trade data when editing
+  // Load trade data when editing - prevent infinite loops by only updating when tradeData changes
   useEffect(() => {
-    if (tradeData) {
-      setEditingId(tradeData.id);
-      setAccountId(tradeData.accountId || "");
-      setSymbol(tradeData.symbol || "");
-      setDirection(tradeData.direction as "Long" | "Short");
-      setEntryPrice(String(tradeData.entryPrice || ""));
-      setQuantity(String(tradeData.quantity || ""));
-      setPnl(tradeData.pnl ? String(tradeData.pnl) : "");
-      setRiskAmount(tradeData.riskAmount ? String(tradeData.riskAmount) : "");
-      setExitCondition(tradeData.exitCondition || "");
-      setExitReason(tradeData.exitReason || "");
-      setStopLoss(tradeData.stopLoss ? String(tradeData.stopLoss) : "");
-      setTakeProfit(tradeData.takeProfit ? String(tradeData.takeProfit) : "");
-      setSwap(tradeData.swap ? String(tradeData.swap) : "");
-      setCommission(tradeData.commission ? String(tradeData.commission) : "");
-      const loadedStrategy = tradeData.strategy || "";
-      setStrategy(loadedStrategy);
-      // Check if loaded strategy is from playbook or custom
-      if (loadedStrategy && !playbookStrategies.includes(loadedStrategy)) {
-        setIsCustomStrategy(true);
+    if (tradeData && tradeData.id) {
+      // Only update if we're not already editing this trade (prevents loops)
+      if (editingId !== tradeData.id) {
+        setEditingId(tradeData.id);
+        setAccountId(tradeData.accountId || "");
+        setSymbol(tradeData.symbol || "");
+        setDirection(tradeData.direction as "Long" | "Short");
+        setEntryPrice(String(tradeData.entryPrice || ""));
+        setQuantity(String(tradeData.quantity || ""));
+        setPnl(tradeData.pnl ? String(tradeData.pnl) : "");
+        setRiskAmount(tradeData.riskAmount ? String(tradeData.riskAmount) : "");
+        setExitCondition(tradeData.exitCondition || "");
+        setExitReason(tradeData.exitReason || "");
+        setStopLoss(tradeData.stopLoss ? String(tradeData.stopLoss) : "");
+        setTakeProfit(tradeData.takeProfit ? String(tradeData.takeProfit) : "");
+        setSwap(tradeData.swap ? String(tradeData.swap) : "");
+        setCommission(tradeData.commission ? String(tradeData.commission) : "");
+        const loadedStrategy = tradeData.strategy || "";
+        setStrategy(loadedStrategy);
+        // Check if loaded strategy is from playbook or custom
+        if (loadedStrategy && !playbookStrategies.includes(loadedStrategy)) {
+          setIsCustomStrategy(true);
+        } else {
+          setIsCustomStrategy(false);
+        }
       } else {
-        setIsCustomStrategy(false);
+        // Trade data already loaded, only update strategy check if playbookStrategies changed
+        const loadedStrategy = tradeData.strategy || "";
+        if (loadedStrategy && !playbookStrategies.includes(loadedStrategy)) {
+          setIsCustomStrategy(true);
+        } else {
+          setIsCustomStrategy(false);
+        }
       }
       
-      // Extract psychology tags from notes if present
-      const notesText = tradeData.notes || "";
-      const psychologyMatch = notesText.match(/Psychology Tags:\s*(.+)/);
-      if (psychologyMatch) {
-        const tags = psychologyMatch[1].split(",").map(t => t.trim()).filter(Boolean);
-        setPsychologyTags(tags);
-        setNotes(notesText.replace(/Psychology Tags:.*$/, "").trim());
-      } else {
-        setNotes(notesText);
-      }
-      
-      setSetup(tradeData.setup || "");
-      setConviction(tradeData.conviction ? Number(tradeData.conviction) : 3);
-      setMarketRegime(tradeData.marketRegime || "");
-      
-      // Load entry date and time - SAFE conversion with explicit new Date() wrapper
-      if (tradeData.entryDate) {
-        try {
-          // SAFE: Always wrap in new Date() to ensure it's a Date object before calling toISOString()
-          const dateValue = safeToDate(tradeData.entryDate);
-          
-          if (dateValue) {
-            // SAFE: dateValue is guaranteed to be a Date object from safeToDate()
-            const isoString = safeToISOString(dateValue);
-            if (isoString) {
-              const dateString = isoString.split('T')[0]; // YYYY-MM-DD
-              setEntryDate(String(dateString));
-              if (!tradeData.entryTime) {
-                // SAFE: dateValue is a Date object, toTimeString() is safe
-                const timeString = dateValue.toTimeString().slice(0, 5); // HH:MM
-                setEntryTime(String(timeString));
+      // Only update other fields if we're loading the trade for the first time
+      if (editingId !== tradeData.id) {
+        // Extract psychology tags from notes if present
+        const notesText = tradeData.notes || "";
+        const psychologyMatch = notesText.match(/Psychology Tags:\s*(.+)/);
+        if (psychologyMatch) {
+          const tags = psychologyMatch[1].split(",").map(t => t.trim()).filter(Boolean);
+          setPsychologyTags(tags);
+          setNotes(notesText.replace(/Psychology Tags:.*$/, "").trim());
+        } else {
+          setNotes(notesText);
+        }
+        
+        setSetup(tradeData.setup || "");
+        setConviction(tradeData.conviction ? Number(tradeData.conviction) : 3);
+        setMarketRegime(tradeData.marketRegime || "");
+        
+        // Load entry date and time - SAFE conversion with explicit new Date() wrapper
+        if (tradeData.entryDate) {
+          try {
+            // SAFE: Always wrap in new Date() to ensure it's a Date object before calling toISOString()
+            const dateValue = safeToDate(tradeData.entryDate);
+            
+            if (dateValue) {
+              // SAFE: dateValue is guaranteed to be a Date object from safeToDate()
+              const isoString = safeToISOString(dateValue);
+              if (isoString) {
+                const dateString = isoString.split('T')[0]; // YYYY-MM-DD
+                setEntryDate(String(dateString));
+                if (!tradeData.entryTime) {
+                  // SAFE: dateValue is a Date object, toTimeString() is safe
+                  const timeString = dateValue.toTimeString().slice(0, 5); // HH:MM
+                  setEntryTime(String(timeString));
+                }
+              } else {
+                setEntryDate("");
               }
             } else {
               setEntryDate("");
             }
-          } else {
+          } catch (error) {
+            console.warn("Error parsing entryDate:", error);
             setEntryDate("");
           }
-        } catch (error) {
-          console.warn("Error parsing entryDate:", error);
+        } else {
           setEntryDate("");
         }
-      } else {
-        setEntryDate("");
+        setEntryTime(tradeData.entryTime ? String(tradeData.entryTime) : "");
       }
-      setEntryTime(tradeData.entryTime ? String(tradeData.entryTime) : "");
     }
-  }, [tradeData, playbookStrategies]);
+  }, [tradeData, playbookStrategies, editingId]);
 
   // Set default account if only one exists
   useEffect(() => {
@@ -732,11 +748,14 @@ export default function NewEntry() {
                         <Target className="h-3.5 w-3.5" />
                         Strategy
                       </Label>
-                      <Link href="/playbook">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs">
-                          Manage Playbook
-                        </Button>
-                      </Link>
+                      <a
+                        href="/playbook"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-slate-400 hover:text-amber-400 hover:underline cursor-pointer transition-colors"
+                      >
+                        Manage Playbook
+                      </a>
                     </div>
                     {isCustomStrategy ? (
                       <div className="space-y-2">
@@ -1032,7 +1051,7 @@ export default function NewEntry() {
                       id="riskAmount"
                       type="number"
                       step="0.01"
-                      placeholder="15.00"
+                      placeholder="0.00"
                       className="font-mono font-semibold text-orange-600"
                       value={riskAmount}
                       onChange={(e) => setRiskAmount(e.target.value)}

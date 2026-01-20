@@ -58,10 +58,12 @@ export function TradeTable({
   });
 
   // Helper to get account name from ID
-  const getAccountName = (accountId: string | null) => {
+  const getAccountName = (accountId: string | null | undefined) => {
     if (!accountId || !accounts) return "—";
     const account = accounts.find(a => a.id === accountId);
-    return account ? account.name : accountId.slice(0, 8);
+    if (account) return account.name;
+    // Account was deleted but trade still references it - show "Deleted Account"
+    return "Deleted Account";
   };
 
   return (

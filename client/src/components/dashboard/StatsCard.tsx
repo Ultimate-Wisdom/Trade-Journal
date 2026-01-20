@@ -8,9 +8,19 @@ interface StatsCardProps {
   change?: string;
   trend?: "up" | "down" | "neutral";
   icon?: React.ElementType;
+  pnlValue?: number; // Optional numeric P&L value for conditional coloring
 }
 
-export function StatsCard({ title, value, change, trend, icon: Icon }: StatsCardProps) {
+export function StatsCard({ title, value, change, trend, icon: Icon, pnlValue }: StatsCardProps) {
+  // Determine color based on P&L value
+  const valueColorClass = pnlValue !== undefined
+    ? pnlValue > 0
+      ? "text-emerald-500"
+      : pnlValue < 0
+      ? "text-rose-500"
+      : "text-white"
+    : ""; // No color class if pnlValue is not provided
+
   return (
     <Card className="overflow-hidden border-sidebar-border bg-card/50 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 px-3 pt-3 md:p-4">
@@ -20,7 +30,7 @@ export function StatsCard({ title, value, change, trend, icon: Icon }: StatsCard
         {Icon && <Icon className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground shrink-0" />}
       </CardHeader>
       <CardContent className="px-3 pb-3 pt-0 md:p-6 md:pt-0">
-        <div className="text-xl md:text-2xl font-bold font-mono tracking-tight leading-none">{value}</div>
+        <div className={cn("text-xl md:text-2xl font-bold font-mono tracking-tight leading-none", valueColorClass)}>{value}</div>
         {change && (
           <p className="mt-1 md:mt-1 flex items-center text-[0.65rem] md:text-xs text-muted-foreground">
             {trend === "up" && <ArrowUpRight className="mr-0.5 h-2.5 w-2.5 md:h-3 md:w-3 text-profit shrink-0" />}

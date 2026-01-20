@@ -29,7 +29,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
 
   // Trade Methods
-  getTrades(userId: string): Promise<Trade[]>;
+  getTrades(userId: string, includeAdjustments?: boolean): Promise<Trade[]>;
   getTrade(id: string, userId: string): Promise<Trade | undefined>;
   createTrade(trade: InsertTrade): Promise<Trade>;
   updateTrade(
@@ -38,6 +38,7 @@ export interface IStorage {
     updates: Partial<InsertTrade>,
   ): Promise<Trade | undefined>;
   deleteTrade(id: string, userId: string): Promise<boolean>;
+  migrateStrategy(userId: string, oldName: string, newName: string): Promise<number>;
 
   // Account Methods
   getAccounts(userId: string): Promise<Account[]>;
@@ -107,11 +108,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // --- TRADE METHODS ---
-  async getTrades(userId: string): Promise<Trade[]> {
+  async getTrades(userId: string, includeAdjustments: boolean = false): Promise<Trade[]> {
+    const conditions = [eq(trades.userId, userId)];
+    
+    // Filter out adjustments, deposits, and withdrawals unless explicitly requested
+    // Only include actual trades (type = "TRADE") for analytics
+    if (!includeAdjustments) {
+      conditions.push(eq(trades.excludeFromStats, false));
+      // Explicitly exclude ADJUSTMENT, DEPOSIT, WITHDRAWAL types
+      // Only include TRADE type for analytics calculations
+      conditions.push(eq(trades.tradeType, "TRADE"));
+    }
+    
     return await db
       .select()
       .from(trades)
-      .where(eq(trades.userId, userId))
+      .where(and(...conditions))
       .orderBy(desc(trades.createdAt));
   }
 
@@ -149,6 +161,18 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  async migrateStrategy(userId: string, oldName: string, newName: string): Promise<number> {
+    const result = await db
+      .update(trades)
+      .set({ strategy: newName })
+      .where(and(
+        eq(trades.userId, userId),
+        eq(trades.strategy, oldName)
+      ))
+      .returning();
+    return result.length;
+  }
+
   // --- ACCOUNT METHODS ---
   async getAccounts(userId: string): Promise<Account[]> {
     return await db.select().from(accounts).where(eq(accounts.userId, userId));
@@ -181,6 +205,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteAccount(id: string, userId: string): Promise<boolean> {
+    // First, set accountId to null for all trades associated with this account
+    // This handles orphaned references gracefully
+    await db
+      .update(trades)
+      .set({ accountId: null })
+      .where(eq(trades.accountId, id));
+    
+    // Then delete the account
     const result = await db
       .delete(accounts)
       .where(and(eq(accounts.id, id), eq(accounts.userId, userId)))

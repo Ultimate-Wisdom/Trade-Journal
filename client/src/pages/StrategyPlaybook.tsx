@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Edit, Loader2, Brain, BookOpen, TrendingUp, Target, BarChart3, DollarSign, X } from "lucide-react";
+import { Plus, Trash2, Edit, Loader2, Brain, BookOpen, TrendingUp, Target, BarChart3, DollarSign, X, ArrowLeft, RefreshCw } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,9 @@ export default function StrategyPlaybook() {
   const [editingTemplate, setEditingTemplate] = useState<TradeTemplate | null>(null);
   const [isEditingRules, setIsEditingRules] = useState(false);
   const [isEditingTweaks, setIsEditingTweaks] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "details">("list"); // Mobile view state
+  const [oldStrategyName, setOldStrategyName] = useState("");
+  const [newStrategyName, setNewStrategyName] = useState("");
 
   // Form state for new/edit template
   const [name, setName] = useState("");
@@ -77,6 +80,16 @@ export default function StrategyPlaybook() {
     enabled: !!selectedTemplateId,
   });
 
+  // Fetch all unique strategy names from trades
+  const { data: tradeStrategies = [] } = useQuery<string[]>({
+    queryKey: ["/api/trades/strategies"],
+    queryFn: async () => {
+      const res = await fetch("/api/trades/strategies", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch strategies");
+      return res.json();
+    },
+  });
+
   // Parse rules from JSON string
   const [rules, setRules] = useState<string[]>([]);
   useEffect(() => {
@@ -97,12 +110,29 @@ export default function StrategyPlaybook() {
     setTweaks(selectedTemplate?.tweaks || "");
   }, [selectedTemplate?.tweaks]);
 
-  // Auto-select first template if none selected
+  // Auto-select first template if none selected (desktop only)
   useEffect(() => {
     if (!selectedTemplateId && templates.length > 0) {
-      setSelectedTemplateId(templates[0].id);
+      // Only auto-select on desktop (window width >= 768px)
+      if (window.innerWidth >= 768) {
+        setSelectedTemplateId(templates[0].id);
+      }
     }
   }, [templates, selectedTemplateId]);
+
+  // Handle strategy selection - switch to details view on mobile
+  const handleSelectTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    // On mobile, switch to details view
+    if (window.innerWidth < 768) {
+      setMobileView("details");
+    }
+  };
+
+  // Handle back to list on mobile
+  const handleBackToList = () => {
+    setMobileView("list");
+  };
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -314,13 +344,88 @@ export default function StrategyPlaybook() {
     updateTweaksMutation.mutate(tweaks);
   };
 
+  // Strategy migration mutation
+  const migrateStrategyMutation = useMutation({
+    mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) => {
+      const res = await fetch("/api/trades/migrate-strategy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldName, newName }),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to migrate strategy");
+      }
+
+      return res.json();
+    },
+    onSuccess: (data) => {
+      // Invalidate all trade-related queries to refresh Dashboard, Journal, and Stats
+      queryClient.invalidateQueries({ queryKey: ["/api/trades"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/trades/strategies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      // Invalidate all template stats (including Dashboard stats)
+      queryClient.invalidateQueries({ queryKey: ["/api/templates", "/stats"] });
+      if (selectedTemplateId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/templates/${selectedTemplateId}/stats`] });
+      }
+      toast({
+        title: "Strategy migrated",
+        description: data.message || `Successfully migrated ${data.updatedCount} trade(s)`,
+      });
+      setOldStrategyName("");
+      setNewStrategyName("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Migration failed",
+        description: error.message || "Failed to migrate strategy",
+      });
+    },
+  });
+
+  const handleMigrateStrategy = () => {
+    if (!oldStrategyName || !newStrategyName) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please select both old and new strategy names",
+      });
+      return;
+    }
+
+    if (oldStrategyName === newStrategyName) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Old and new strategy names cannot be the same",
+      });
+      return;
+    }
+
+    migrateStrategyMutation.mutate({
+      oldName: oldStrategyName,
+      newName: newStrategyName,
+    });
+  };
+
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
         <div className="flex h-[calc(100vh-5rem)]">
           {/* LEFT SIDE: Strategy List */}
-          <div className="w-80 border-r border-sidebar-border bg-sidebar/50 flex flex-col">
+          <div className={cn(
+            "border-r border-sidebar-border bg-sidebar/50 flex flex-col",
+            // Desktop: fixed width, always visible
+            "md:w-80",
+            // Mobile: full width when showing list, hidden when showing details
+            "w-full md:block",
+            mobileView === "details" ? "hidden" : "block"
+          )}>
             <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
               <h2 className="font-semibold text-lg flex items-center gap-2">
                 <BookOpen className="h-5 w-5 text-primary" />
@@ -412,7 +517,7 @@ export default function StrategyPlaybook() {
                   {templates.map((template) => (
                     <button
                       key={template.id}
-                      onClick={() => setSelectedTemplateId(template.id)}
+                      onClick={() => handleSelectTemplate(template.id)}
                       className={cn(
                         "w-full text-left p-3 rounded-lg transition-colors",
                         "hover:bg-sidebar-accent/50",
@@ -435,9 +540,25 @@ export default function StrategyPlaybook() {
           </div>
 
           {/* RIGHT SIDE: Strategy Dashboard */}
-          <div className="flex-1 overflow-y-auto">
+          <div className={cn(
+            "flex-1 overflow-y-auto",
+            // Mobile: hidden when showing list, visible when showing details
+            "md:block",
+            mobileView === "list" ? "hidden" : "block"
+          )}>
             {selectedTemplate ? (
               <div className="p-6 space-y-6">
+                {/* Mobile: Back to List Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBackToList}
+                  className="md:hidden mb-4"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to List
+                </Button>
+
                 {/* Header: Strategy Name + Edit/Delete */}
                 <div className="flex items-start justify-between">
                   <div>
@@ -468,6 +589,83 @@ export default function StrategyPlaybook() {
                 </div>
 
                 <Separator />
+
+                {/* Strategy Migration Tool */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <RefreshCw className="h-5 w-5" />
+                      Rename Old Strategy
+                    </CardTitle>
+                    <CardDescription>
+                      Update all trades that use an old strategy name to use a new name
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="oldStrategy">Old Name</Label>
+                        <Select value={oldStrategyName} onValueChange={setOldStrategyName}>
+                          <SelectTrigger id="oldStrategy">
+                            <SelectValue placeholder="Select old strategy name from trades" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tradeStrategies.length > 0 ? (
+                              tradeStrategies
+                                .filter((strategy) => strategy && strategy.trim())
+                                .map((strategy) => (
+                                  <SelectItem key={strategy} value={strategy}>
+                                    {strategy}
+                                  </SelectItem>
+                                ))
+                            ) : (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                No strategies found in trades
+                              </div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Shows all strategy names from your trade history (including orphaned names)
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="newStrategy">New Name</Label>
+                        <Select value={newStrategyName} onValueChange={setNewStrategyName}>
+                          <SelectTrigger id="newStrategy">
+                            <SelectValue placeholder="Select new strategy name" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {templates
+                              .filter((template) => template.name && template.name.trim())
+                              .map((template) => (
+                                <SelectItem key={template.id} value={template.name}>
+                                  {template.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleMigrateStrategy}
+                      disabled={migrateStrategyMutation.isPending || !oldStrategyName || !newStrategyName}
+                      className="w-full"
+                    >
+                      {migrateStrategyMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Update All Trades
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
 
                 {/* Section A: The Rules */}
                 <Card>
@@ -681,7 +879,7 @@ export default function StrategyPlaybook() {
                 </Card>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full md:block hidden">
                 <div className="text-center text-muted-foreground">
                   <BookOpen className="h-16 w-16 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-medium">No Play Selected</p>

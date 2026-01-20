@@ -50,7 +50,7 @@ export const trades = pgTable("trades", {
   userId: varchar("user_id")
     .references(() => users.id)
     .notNull(),
-  accountId: varchar("account_id").references(() => accounts.id),
+  accountId: varchar("account_id").references(() => accounts.id, { onDelete: "set null" }),
   tradeType: varchar("trade_type", { length: 20 }).default("TRADE").notNull(), // "TRADE" or "ADJUSTMENT"
   excludeFromStats: boolean("exclude_from_stats").default(false).notNull(), // Exclude from analytics (e.g., balance adjustments)
   symbol: varchar("symbol", { length: 20 }),

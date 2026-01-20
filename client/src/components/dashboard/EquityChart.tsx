@@ -7,21 +7,99 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { Account, Trade as DBTrade } from "@shared/schema";
+import { useMemo } from "react";
 
-const data = [
-  { date: "Jan 01", equity: 10000 },
-  { date: "Jan 05", equity: 10250 },
-  { date: "Jan 10", equity: 10100 },
-  { date: "Jan 15", equity: 10800 },
-  { date: "Jan 20", equity: 11200 },
-  { date: "Jan 25", equity: 10900 },
-  { date: "Jan 30", equity: 11500 },
-  { date: "Feb 05", equity: 12100 },
-  { date: "Feb 10", equity: 11800 },
-  { date: "Feb 15", equity: 12500 },
-];
+interface EquityChartProps {
+  selectedAccountId?: string | null;
+}
 
-export function EquityChart() {
+export function EquityChart({ selectedAccountId }: EquityChartProps) {
+  // Fetch all trades including adjustments for balance visualization
+  const { data: allTrades } = useQuery<DBTrade[]>({
+    queryKey: ["/api/trades?include_adjustments=true"],
+    queryFn: async () => {
+      const res = await fetch("/api/trades?include_adjustments=true", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch trades");
+      return res.json();
+    },
+  });
+
+  const { data: accounts } = useQuery<Account[]>({
+    queryKey: ["/api/accounts"],
+  });
+
+  // Calculate equity curve data
+  const data = useMemo(() => {
+    if (!allTrades || !accounts) return [];
+
+    // Filter trades by selected account if specified
+    let relevantTrades = allTrades;
+    if (selectedAccountId) {
+      relevantTrades = allTrades.filter((t) => t.accountId === selectedAccountId);
+    }
+
+    // Get initial balance(s)
+    let initialBalance = 0;
+    if (selectedAccountId) {
+      const account = accounts.find((a) => a.id === selectedAccountId);
+      initialBalance = account ? Number(account.initialBalance || 0) : 0;
+    } else {
+      // Sum all account initial balances
+      initialBalance = accounts.reduce((sum, acc) => sum + Number(acc.initialBalance || 0), 0);
+    }
+
+    // Sort trades by date (entryDate or createdAt)
+    const sortedTrades = [...relevantTrades].sort((a, b) => {
+      const dateA = a.entryDate ? new Date(a.entryDate).getTime() : new Date(a.createdAt).getTime();
+      const dateB = b.entryDate ? new Date(b.entryDate).getTime() : new Date(b.createdAt).getTime();
+      return dateA - dateB;
+    });
+
+    // Build equity curve by accumulating P&L over time
+    let runningBalance = initialBalance;
+    const equityData: { date: string; equity: number }[] = [];
+
+    // Add starting point
+    if (sortedTrades.length > 0) {
+      const firstTrade = sortedTrades[0];
+      const firstDate = firstTrade.entryDate 
+        ? new Date(firstTrade.entryDate) 
+        : new Date(firstTrade.createdAt);
+      equityData.push({
+        date: firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        equity: initialBalance,
+      });
+    }
+
+    // Process each trade chronologically
+    sortedTrades.forEach((trade) => {
+      const pnl = trade.pnl ? Number(trade.pnl) : 0;
+      runningBalance += pnl;
+
+      const tradeDate = trade.entryDate 
+        ? new Date(trade.entryDate) 
+        : new Date(trade.createdAt);
+
+      equityData.push({
+        date: tradeDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        equity: Math.round(runningBalance * 100) / 100, // Round to 2 decimals
+      });
+    });
+
+    // If no trades, show initial balance
+    if (equityData.length === 0) {
+      equityData.push({
+        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        equity: initialBalance,
+      });
+    }
+
+    return equityData;
+  }, [allTrades, accounts, selectedAccountId]);
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">

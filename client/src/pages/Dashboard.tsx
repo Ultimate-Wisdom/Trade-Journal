@@ -44,12 +44,36 @@ export default function Dashboard() {
     queryKey: ["/api/trades"],
   });
 
+  // Fetch all trades including adjustments for balance calculation
+  const { data: allTradesIncludingAdjustments } = useQuery<DBTrade[]>({
+    queryKey: ["/api/trades?include_adjustments=true"],
+    queryFn: async () => {
+      const res = await fetch("/api/trades?include_adjustments=true", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch trades");
+      return res.json();
+    },
+  });
+
   const isLoading = isLoadingAccounts || isLoadingTrades;
 
-  // Filter trades by selected account
+  // Filter trades by selected account and exclude balance corrections
   const filteredTrades = useMemo(() => {
     if (!dbTrades) return [];
     let filtered = dbTrades;
+    
+    // Filter out balance corrections, deposits, and withdrawals (safety measure - backend should already filter)
+    // Only include actual trades (type = "TRADE") for analytics
+    filtered = filtered.filter((t) => {
+      // Exclude if excludeFromStats is true
+      if (t.excludeFromStats === true) return false;
+      // Explicitly exclude non-trade types (ADJUSTMENT, DEPOSIT, WITHDRAWAL)
+      // Only include TRADE type for analytics calculations
+      if (t.tradeType && t.tradeType !== "TRADE") return false;
+      return true;
+    });
+    
     if (selectedAccountId) {
       filtered = filtered.filter((t) => t.accountId === selectedAccountId);
     }
@@ -142,14 +166,49 @@ export default function Dashboard() {
     };
   }, [trades]);
 
-  // Calculate total capital from selected account or all accounts
-  const totalCapital = useMemo(() => {
+  // Calculate live equity (initial balance + sum of all PnL including adjustments)
+  const liveEquity = useMemo(() => {
+    if (!allTradesIncludingAdjustments || !accounts) return 0;
+
     if (selectedAccountId) {
-      const account = accounts?.find((a) => a.id === selectedAccountId);
-      return account ? Number(account.initialBalance || 0) : 0;
+      // Calculate for selected account
+      const account = accounts.find((a) => a.id === selectedAccountId);
+      if (!account) return 0;
+
+      const initialBalance = Number(account.initialBalance || 0);
+      
+      // Sum all PnL for this account (including adjustments)
+      const accountTrades = allTradesIncludingAdjustments.filter(
+        (t) => t.accountId === selectedAccountId
+      );
+      const totalPnl = accountTrades.reduce((sum, trade) => {
+        const pnl = trade.pnl ? Number(trade.pnl) : 0;
+        return sum + (isNaN(pnl) ? 0 : pnl);
+      }, 0);
+
+      return initialBalance + totalPnl;
+    } else {
+      // Calculate for all accounts combined
+      let totalEquity = 0;
+
+      accounts.forEach((account) => {
+        const initialBalance = Number(account.initialBalance || 0);
+        
+        // Sum all PnL for this account (including adjustments)
+        const accountTrades = allTradesIncludingAdjustments.filter(
+          (t) => t.accountId === account.id
+        );
+        const totalPnl = accountTrades.reduce((sum, trade) => {
+          const pnl = trade.pnl ? Number(trade.pnl) : 0;
+          return sum + (isNaN(pnl) ? 0 : pnl);
+        }, 0);
+
+        totalEquity += initialBalance + totalPnl;
+      });
+
+      return totalEquity;
     }
-    return accounts?.reduce((sum, acc) => sum + Number(acc.initialBalance || 0), 0) || 0;
-  }, [accounts, selectedAccountId]);
+  }, [accounts, selectedAccountId, allTradesIncludingAdjustments]);
 
   const selectedAccount = accounts?.find((a) => a.id === selectedAccountId);
 
@@ -184,10 +243,10 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <div className="hidden md:block text-right">
                 <p className="text-xs text-muted-foreground font-mono">
-                  {selectedAccount ? "ACCOUNT BALANCE" : "TOTAL CAPITAL"}
+                  {selectedAccount ? "ACCOUNT BALANCE" : "TOTAL EQUITY"}
                 </p>
                 <p className="text-lg font-bold text-primary">
-                  ${maskValue(totalCapital)}
+                  ${maskValue(liveEquity)}
                 </p>
               </div>
               <AddAccountDialog />
@@ -236,6 +295,7 @@ export default function Dashboard() {
               change={stats.totalPnl === 0 ? "0.0%" : "---"}
               trend={stats.pnlTrend as "up" | "down" | "neutral"}
               icon={DollarSign}
+              pnlValue={stats.totalPnl}
             />
             <StatsCard
               title="Win Rate"
@@ -269,7 +329,7 @@ export default function Dashboard() {
                   Equity Curve
                 </h3>
               </div>
-              <EquityChart />
+              <EquityChart selectedAccountId={selectedAccountId} />
             </div>
             <div className="col-span-2 md:col-span-3 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative min-h-[140px] md:min-h-[160px]">
               <img

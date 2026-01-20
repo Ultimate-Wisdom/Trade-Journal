@@ -1,7 +1,7 @@
 import { Account } from "@shared/schema";
 import { AddAccountDialog } from "@/components/add-account-dialog";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2, ChevronRight, ChevronDown, Building2 } from "lucide-react";
+import { Pencil, Trash2, ChevronRight, ChevronDown, Building2, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -187,6 +187,21 @@ export function AccountTree({ accounts, selectedAccountId, onSelectAccount }: Ac
   return (
     <>
       <div className="space-y-1">
+        {/* All Accounts / Overview Button */}
+        <button
+          onClick={() => onSelectAccount(null)}
+          className={cn(
+            "w-full flex items-center gap-2 p-3 rounded-lg border transition-colors text-left mb-2",
+            selectedAccountId === null
+              ? "bg-primary/10 border-primary text-primary"
+              : "bg-sidebar-accent/30 border-sidebar-border hover:bg-sidebar-accent/50"
+          )}
+        >
+          <LayoutDashboard className="h-4 w-4" />
+          <span className="font-semibold text-sm flex-1">All Accounts</span>
+          <span className="text-xs text-muted-foreground">Overview</span>
+        </button>
+
         {accountGroups.map((group) => {
           const isFirmExpanded = expandedFirms.has(group.propFirm);
           return (

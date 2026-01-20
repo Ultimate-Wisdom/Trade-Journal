@@ -54,9 +54,18 @@ export default function Journal() {
     fetch("/api/trades")
       .then((res) => res.json())
       .then((data) => {
+        // Filter out balance corrections (excludeFromStats = true or tradeType = ADJUSTMENT)
+        const filteredData = data.filter((t: any) => {
+          // Exclude if excludeFromStats is true
+          if (t.excludeFromStats === true || t.exclude_from_stats === true) return false;
+          // Exclude if tradeType is ADJUSTMENT
+          if (t.tradeType === "ADJUSTMENT" || t.trade_type === "ADJUSTMENT") return false;
+          return true;
+        });
+        
         // REMAPPING & SANITIZING:
         // We ensure every field has a fallback value to prevent "toLowerCase" or "undefined" crashes.
-        const formattedData = data.map((t: any) => ({
+        const formattedData = filteredData.map((t: any) => ({
           ...t,
           id: String(t.id),
           pair: t.symbol || t.pair || "UNKNOWN",
@@ -99,7 +108,16 @@ export default function Journal() {
       fetch("/api/trades")
         .then((res) => res.json())
         .then((data) => {
-          const formattedData = data.map((t: any) => ({
+          // Filter out balance corrections (excludeFromStats = true or tradeType = ADJUSTMENT)
+          const filteredData = data.filter((t: any) => {
+            // Exclude if excludeFromStats is true
+            if (t.excludeFromStats === true || t.exclude_from_stats === true) return false;
+            // Exclude if tradeType is ADJUSTMENT
+            if (t.tradeType === "ADJUSTMENT" || t.trade_type === "ADJUSTMENT") return false;
+            return true;
+          });
+          
+          const formattedData = filteredData.map((t: any) => ({
             ...t,
             id: String(t.id),
             pair: t.symbol || t.pair || "UNKNOWN",

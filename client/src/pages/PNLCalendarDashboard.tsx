@@ -64,8 +64,13 @@ export default function PNLCalendarDashboard() {
   const filteredTrades = useMemo(() => {
     if (!dbTrades) return [];
     return dbTrades.filter((trade) => {
-      // Exclude adjustments from analytics (they affect balance but not performance stats)
+      // Exclude adjustments, deposits, and withdrawals from analytics
+      // They affect balance but not performance stats
       if (trade.excludeFromStats) return false;
+      
+      // Explicitly exclude non-trade types (ADJUSTMENT, DEPOSIT, WITHDRAWAL)
+      // Only include actual trades (type = "TRADE") for calendar heatmap
+      if (trade.tradeType && trade.tradeType !== "TRADE") return false;
       
       // Apply account filter
       if (filters.accountId !== "all" && trade.accountId !== filters.accountId) return false;
