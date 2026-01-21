@@ -75,10 +75,23 @@ app.use((req, res, next) => {
   // Register routes (includes setupAuth)
   await registerRoutes(app, httpServer);
 
+  // 404 handler for API routes - MUST be before Vite middleware
+  // This ensures API routes return JSON 404 instead of HTML
+  app.use("/api/*", (req, res) => {
+    res.status(404).json({ 
+      error: "Not Found", 
+      message: `API endpoint ${req.method} ${req.originalUrl} not found` 
+    });
+  });
+
   // Error handling middleware
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+    // Ensure JSON response for errors
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "application/json");
+    }
     res.status(status).json({ message });
     console.error("❌ Server error:", err);
   });

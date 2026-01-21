@@ -19,7 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ExportDialog } from "@/components/export/ExportDialog";
-import { BatchOperations } from "@/components/batch/BatchOperations";
 import { TradeComparison } from "@/components/comparison/TradeComparison";
 import {
   AlertDialog,
@@ -38,7 +37,6 @@ export default function Journal() {
   const [search, setSearch] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
   const [outcomeFilter, setOutcomeFilter] = useState<"all" | "win" | "loss" | "breakeven">("all");
-  const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [compareTrades, setCompareTrades] = useState<string[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tradeToDelete, setTradeToDelete] = useState<string | null>(null);
@@ -377,14 +375,6 @@ export default function Journal() {
             onClear={() => setCompareTrades([])}
           />
 
-          {/* Batch Operations - Hidden on mobile */}
-          <div className="hidden md:block">
-            <BatchOperations
-              trades={filteredTrades}
-              selectedTrades={selectedTrades}
-              onSelectionChange={setSelectedTrades}
-            />
-          </div>
 
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">

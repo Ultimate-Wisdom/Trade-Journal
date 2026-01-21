@@ -91,6 +91,77 @@ export default function NewEntry() {
   const [entryDate, setEntryDate] = useState(""); // Date in YYYY-MM-DD format
   const [entryTime, setEntryTime] = useState(""); // Time in HH:MM format
   
+  // Convert 24h time to 12h format for preview
+  const format12Hour = (time24: string): string => {
+    if (!time24 || typeof time24 !== 'string') return '';
+    const parts = time24.split(':');
+    if (parts.length !== 2) return '';
+    
+    const hour = parseInt(parts[0], 10);
+    const minute = parts[1];
+    
+    if (isNaN(hour) || hour < 0 || hour > 23) return '';
+    if (!minute || minute.length !== 2) return '';
+    
+    const minuteNum = parseInt(minute, 10);
+    if (isNaN(minuteNum) || minuteNum < 0 || minuteNum > 59) return '';
+    
+    if (hour === 0) {
+      return `12:${minute} AM`;
+    } else if (hour === 12) {
+      return `12:${minute} PM`;
+    } else if (hour < 12) {
+      return `${hour}:${minute} AM`;
+    } else {
+      return `${hour - 12}:${minute} PM`;
+    }
+  };
+  
+  // Handle time input with smart masking
+  const handleTimeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    
+    // Remove all non-numeric characters
+    value = value.replace(/\D/g, '');
+    
+    // Limit to 4 digits
+    if (value.length > 4) {
+      value = value.slice(0, 4);
+    }
+    
+    // Auto-insert colon after 2nd digit
+    if (value.length >= 2) {
+      const hours = value.slice(0, 2);
+      const minutes = value.slice(2);
+      
+      // Validate hours (00-23)
+      const hourNum = parseInt(hours, 10);
+      if (hourNum > 23) {
+        // If first digit is 2, second can only be 0-3
+        if (hours[0] === '2' && parseInt(hours[1], 10) > 3) {
+          value = hours[0] + '3' + minutes;
+        } else if (hours[0] > '2') {
+          // If first digit is 3-9, cap at 23
+          value = '23' + minutes;
+        }
+      }
+      
+      // Validate minutes (00-59)
+      if (minutes.length >= 2) {
+        const minuteNum = parseInt(minutes.slice(0, 2), 10);
+        if (minuteNum > 59) {
+          value = hours + '59';
+        } else {
+          value = hours + ':' + minutes.slice(0, 2);
+        }
+      } else {
+        value = hours + (minutes ? ':' + minutes : '');
+      }
+    }
+    
+    setEntryTime(value);
+  };
+  
   // Helper function to safely convert any value to Date object
   const safeToDate = (value: any): Date | null => {
     if (!value) return null;
@@ -1208,13 +1279,16 @@ export default function NewEntry() {
                                 id="entryDate"
                               >
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {entryDate ? (
-                                  new Date(entryDate + "T00:00:00").toLocaleDateString("en-US", {
+                                {entryDate ? (() => {
+                                  // Parse YYYY-MM-DD string and format in local time
+                                  const [year, month, day] = entryDate.split('-').map(Number);
+                                  const localDate = new Date(year, month - 1, day);
+                                  return localDate.toLocaleDateString("en-US", {
                                     year: "numeric",
                                     month: "2-digit",
                                     day: "2-digit",
-                                  })
-                                ) : (
+                                  });
+                                })() : (
                                   <span>Pick a date</span>
                                 )}
                               </Button>
@@ -1222,10 +1296,23 @@ export default function NewEntry() {
                             <PopoverContent className="w-auto p-0" align="start">
                               <Calendar
                                 mode="single"
-                                selected={entryDate ? new Date(entryDate + "T00:00:00") : undefined}
+                                selected={entryDate ? (() => {
+                                  // Parse YYYY-MM-DD string and create Date in local time (noon to avoid timezone shifts)
+                                  const [year, month, day] = entryDate.split('-').map(Number);
+                                  const localDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+                                  return localDate;
+                                })() : undefined}
                                 onSelect={(date) => {
                                   if (date) {
-                                    const dateString = date.toISOString().split('T')[0];
+                                    // Set time to noon locally to prevent timezone shift
+                                    const adjustedDate = new Date(date);
+                                    adjustedDate.setHours(12, 0, 0, 0);
+                                    
+                                    // Format as YYYY-MM-DD using local date components (not UTC)
+                                    const year = adjustedDate.getFullYear();
+                                    const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
+                                    const day = String(adjustedDate.getDate()).padStart(2, '0');
+                                    const dateString = `${year}-${month}-${day}`;
                                     setEntryDate(dateString);
                                   } else {
                                     setEntryDate("");
@@ -1253,17 +1340,24 @@ export default function NewEntry() {
                             <Clock className="h-3.5 w-3.5" />
                             Entry Time (24h)
                           </Label>
-                          <Input
-                            id="entryTime"
-                            type="time"
-                            value={entryTime}
-                            onChange={(e) => setEntryTime(e.target.value)}
-                            placeholder="14:30"
-                            className="font-mono"
-                            step="60"
-                          />
+                          <div className="space-y-1">
+                            <Input
+                              id="entryTime"
+                              type="text"
+                              placeholder="HH:MM"
+                              value={entryTime}
+                              onChange={handleTimeInput}
+                              className="font-mono max-w-[100px]"
+                              maxLength={5}
+                            />
+                            {entryTime && entryTime.includes(':') && (
+                              <p className="text-xs text-muted-foreground">
+                                {format12Hour(entryTime)}
+                              </p>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            What time did you enter? (For session analysis)
+                            What time did you enter? (For session analysis) - Type 4 digits (e.g., 1323 → 13:23)
                           </p>
                         </div>
                         

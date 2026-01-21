@@ -6,11 +6,6 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 
 export default defineConfig({
-  test: {
-    globals: true,
-    environment: "jsdom",
-    setupFiles: [],
-  },
   plugins: [
     react(),
     // Disabled runtime error overlay - it causes false positives during React initialization
@@ -64,7 +59,17 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     allowedHosts: true,
-    // === PROXY REMOVED to prevent Infinite Loop ===
+    // Proxy API requests to Express backend
+    // Note: This is only used if Vite dev server runs standalone
+    // In middleware mode (current setup), Express handles routing directly
+    proxy: {
+      "/api": {
+        target: "http://localhost:5000", // Express server port
+        changeOrigin: true,
+        secure: false,
+        // Don't rewrite the path - forward /api/* as-is
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

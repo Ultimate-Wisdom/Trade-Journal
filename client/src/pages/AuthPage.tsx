@@ -43,8 +43,8 @@ export default function AuthPage() {
       {/* Main Branding Section */}
       <div className="z-10 text-center mb-8 flex flex-col items-center">
         {/* BIG OPES TITLE */}
-        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tighter text-white mb-2">
-          OPES
+        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-white mb-2">
+          OPES FORGE
         </h1>
         
         {/* SUBTITLE */}

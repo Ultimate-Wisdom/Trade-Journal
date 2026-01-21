@@ -9,11 +9,14 @@ interface StatsCardProps {
   trend?: "up" | "down" | "neutral";
   icon?: React.ElementType;
   pnlValue?: number; // Optional numeric P&L value for conditional coloring
+  className?: string; // Optional custom className for the value text
 }
 
-export function StatsCard({ title, value, change, trend, icon: Icon, pnlValue }: StatsCardProps) {
-  // Determine color based on P&L value
-  const valueColorClass = pnlValue !== undefined
+export function StatsCard({ title, value, change, trend, icon: Icon, pnlValue, className }: StatsCardProps) {
+  // Determine color based on P&L value, or use custom className if provided
+  const valueColorClass = className 
+    ? className 
+    : pnlValue !== undefined
     ? pnlValue > 0
       ? "text-emerald-500"
       : pnlValue < 0

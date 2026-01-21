@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { getLivePrices, calculateCryptoValue } from "./price-service";
 import {
   validateTradeCreation,
   validateSymbol,
@@ -911,6 +912,85 @@ export async function registerRoutes(
     }
   });
 
+  // Rename a Playbook strategy (updates both template and trades)
+  // IMPORTANT: This route must be registered BEFORE /api/templates/:id routes
+  // to prevent Express from matching "rename-strategy" as an :id parameter
+  app.post("/api/templates/rename-strategy", async (req, res) => {
+    // CRITICAL: Set Content-Type header immediately to ensure JSON response
+    res.setHeader("Content-Type", "application/json");
+    
+    try {
+      console.log("📝 POST /api/templates/rename-strategy - Request received");
+      
+      // Always return JSON, even for auth errors
+      if (!req.isAuthenticated()) {
+        console.log("❌ Authentication failed");
+        return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to rename a strategy" });
+      }
+      
+      if (!storage) {
+        console.error("❌ Storage engine is undefined");
+        return res.status(500).json({ error: "Server Error", message: "Storage engine is not available" });
+      }
+
+      const { oldName, newName } = req.body;
+      
+      if (!oldName || !newName) {
+        console.log("❌ Missing fields:", { oldName: !!oldName, newName: !!newName });
+        return res.status(400).json({ error: "Validation Error", message: "Both oldName and newName are required" });
+      }
+
+      const userId = req.user!.id;
+      console.log(`🔄 Renaming strategy: "${oldName}" -> "${newName}" for user ${userId}`);
+
+      if (oldName === newName) {
+        return res.status(400).json({ error: "Validation Error", message: "Old name and new name cannot be the same" });
+      }
+
+      // Validate strings
+      const oldNameResult = validateString(oldName, "Old strategy name", {
+        required: true,
+        minLength: 1,
+        maxLength: 200,
+      });
+      if (!oldNameResult.isValid) {
+        return res.status(400).json({ error: "Validation Error", message: oldNameResult.error });
+      }
+
+      const newNameResult = validateString(newName, "New strategy name", {
+        required: true,
+        minLength: 1,
+        maxLength: 200,
+      });
+      if (!newNameResult.isValid) {
+        return res.status(400).json({ error: "Validation Error", message: newNameResult.error });
+      }
+
+      // Perform rename (updates both template and trades)
+      const result = await storage.renameStrategy(userId, oldName.trim(), newName.trim());
+      console.log(`✅ Rename successful: ${result.templateUpdated} template(s), ${result.tradesUpdated} trade(s)`);
+
+      return res.json({
+        success: true,
+        message: `Successfully renamed strategy "${oldName}" to "${newName}". Updated ${result.templateUpdated} template(s) and ${result.tradesUpdated} trade(s).`,
+        templateUpdated: result.templateUpdated,
+        tradesUpdated: result.tradesUpdated,
+      });
+    } catch (error: any) {
+      console.error("❌ POST /api/templates/rename-strategy failed:", error);
+      console.error("Error stack:", error.stack);
+      // Always return JSON, never HTML - ensure we've set the header
+      if (!res.headersSent) {
+        res.setHeader("Content-Type", "application/json");
+      }
+      return res.status(500).json({ 
+        error: "Server Error", 
+        message: error.message || "Failed to rename strategy",
+        details: process.env.NODE_ENV === "development" ? error.stack : undefined
+      });
+    }
+  });
+
   app.patch("/api/templates/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -1126,6 +1206,287 @@ export async function registerRoutes(
     }
   });
 
+  // Log that the rename-strategy route is registered
+  console.log("✅ POST /api/templates/rename-strategy route registered");
+
+  // ==========================================
+  // USER SETTINGS ROUTES
+  // ==========================================
+  
+  // Get user settings
+  app.get("/api/settings", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to view settings" });
+      }
+      
+      if (!storage) {
+        return res.status(500).json({ error: "Server Error", message: "Storage engine is not available" });
+      }
+
+      const userId = req.user!.id;
+      const settings = await storage.getUserSettings(userId);
+
+      if (!settings) {
+        // Return defaults if no settings exist
+        return res.json({
+          currency: "USD",
+          defaultBalance: "10000",
+          dateFormat: "DD-MM-YYYY",
+        });
+      }
+
+      res.json({
+        currency: settings.currency || "USD",
+        defaultBalance: String(settings.defaultBalance || "10000"),
+        dateFormat: settings.dateFormat || "DD-MM-YYYY",
+      });
+    } catch (error: any) {
+      console.error("❌ GET /api/settings failed:", error);
+      return res.status(500).json({ 
+        error: "Server Error", 
+        message: error.message || "Failed to fetch settings",
+      });
+    }
+  });
+
+  // Save/Update user settings
+  app.post("/api/settings", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to save settings" });
+      }
+      
+      if (!storage) {
+        return res.status(500).json({ error: "Server Error", message: "Storage engine is not available" });
+      }
+
+      const userId = req.user!.id;
+      const { currency, defaultBalance, dateFormat } = req.body;
+
+      // Validate date format
+      if (dateFormat && dateFormat !== "DD-MM-YYYY" && dateFormat !== "MM-DD-YYYY") {
+        return res.status(400).json({ 
+          error: "Validation Error", 
+          message: "Date format must be either 'DD-MM-YYYY' or 'MM-DD-YYYY'" 
+        });
+      }
+
+      const updatedSettings = await storage.upsertUserSettings(userId, {
+        currency: currency || "USD",
+        defaultBalance: defaultBalance || "10000",
+        dateFormat: (dateFormat || "DD-MM-YYYY") as "DD-MM-YYYY" | "MM-DD-YYYY",
+      });
+
+      res.json({
+        currency: updatedSettings.currency,
+        defaultBalance: String(updatedSettings.defaultBalance),
+        dateFormat: updatedSettings.dateFormat,
+      });
+    } catch (error: any) {
+      console.error("❌ POST /api/settings failed:", error);
+      return res.status(500).json({ 
+        error: "Server Error", 
+        message: error.message || "Failed to save settings",
+      });
+    }
+  });
+
+  // ==========================================
+  // PORTFOLIO ASSETS API
+  // ==========================================
+  app.get("/api/assets", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to view portfolio assets" });
+      }
+      
+      if (!storage) {
+        return res.status(500).json({ error: "Server Error", message: "Storage engine is not available" });
+      }
+
+      const userId = req.user!.id;
+      const assets = await storage.getPortfolioAssets(userId);
+
+      // Extract crypto API IDs for live price fetching
+      const cryptoApiIds = assets
+        .filter((asset) => asset.type === "CRYPTO" && asset.apiId)
+        .map((asset) => asset.apiId!)
+        .filter((id, index, self) => self.indexOf(id) === index); // Unique IDs only
+
+      // Fetch live prices for all crypto assets
+      const prices = await getLivePrices(cryptoApiIds);
+
+      // Enrich assets with calculated USD values
+      const enrichedAssets = assets.map((asset) => {
+        let calculatedValueUsd: number | null = null;
+
+        if (asset.type === "CRYPTO" && asset.apiId && asset.quantity) {
+          // Calculate: Quantity * Live Price USD
+          calculatedValueUsd = calculateCryptoValue(asset.quantity, asset.apiId, prices);
+        } else if (asset.type === "CASH" || asset.type === "INVESTMENT") {
+          // Calculate: Balance converted to USD
+          if (asset.balance) {
+            const balance = typeof asset.balance === "string" ? parseFloat(asset.balance) : Number(asset.balance);
+            if (asset.currency === "USD") {
+              calculatedValueUsd = balance;
+            } else if (asset.currency === "MYR") {
+              calculatedValueUsd = balance / 4.45; // MYR to USD conversion
+            }
+          }
+        } else if (asset.type === "PROP_FIRM" && asset.balance) {
+          // Prop Firm: Balance in USD (already stored as USD)
+          const balance = typeof asset.balance === "string" ? parseFloat(asset.balance) : Number(asset.balance);
+          calculatedValueUsd = balance;
+        }
+
+        return {
+          ...asset,
+          calculatedValueUsd,
+        };
+      });
+
+      res.json(enrichedAssets);
+    } catch (error: any) {
+      console.error("❌ GET /api/assets failed:", error);
+      return res.status(500).json({ 
+        error: "Server Error", 
+        message: error.message || "Failed to fetch portfolio assets",
+      });
+    }
+  });
+
+  app.post("/api/assets", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to create portfolio assets" });
+      }
+      
+      if (!storage) {
+        return res.status(500).json({ error: "Server Error", message: "Storage engine is not available" });
+      }
+
+      const userId = req.user!.id;
+      const { name, type, balance, currency, location, ticker, apiId, quantity } = req.body;
+
+      // Validate required fields
+      if (!name || !type || !currency) {
+        return res.status(400).json({ 
+          error: "Validation Error", 
+          message: "Name, type, and currency are required" 
+        });
+      }
+
+      // Validate type
+      const validTypes = ["CASH", "INVESTMENT", "CRYPTO", "PROP_FIRM"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ 
+          error: "Validation Error", 
+          message: `Type must be one of: ${validTypes.join(", ")}` 
+        });
+      }
+
+      // Validate currency
+      if (!["MYR", "USD"].includes(currency)) {
+        return res.status(400).json({ 
+          error: "Validation Error", 
+          message: "Currency must be either 'MYR' or 'USD'" 
+        });
+      }
+
+      // Type-specific validation
+      if (type === "CRYPTO") {
+        // Crypto requires quantity and apiId
+        if (!quantity || quantity === null || !apiId || !ticker) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: "Crypto assets require quantity, ticker, and apiId (CoinGecko ID)" 
+          });
+        }
+        const qty = parseFloat(String(quantity));
+        if (isNaN(qty) || qty <= 0) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: "Quantity must be a valid positive number" 
+          });
+        }
+      } else if (type === "CASH" || type === "INVESTMENT" || type === "PROP_FIRM") {
+        // Cash/Investment/Prop Firm requires balance
+        if (balance === undefined || balance === null) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: `${type} assets require a balance` 
+          });
+        }
+        const balanceNum = parseFloat(String(balance));
+        if (isNaN(balanceNum) || balanceNum < 0) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: "Balance must be a valid positive number" 
+          });
+        }
+      }
+
+      const asset = await storage.createPortfolioAsset({
+        userId,
+        name: String(name).trim(),
+        location: location ? String(location).trim() : null,
+        type: type as "CASH" | "INVESTMENT" | "CRYPTO" | "PROP_FIRM",
+        ticker: ticker ? String(ticker).trim().toUpperCase() : null,
+        apiId: apiId ? String(apiId).trim().toLowerCase() : null,
+        quantity: type === "CRYPTO" && quantity ? String(parseFloat(String(quantity)).toFixed(8)) : null,
+        balance: (type === "CASH" || type === "INVESTMENT" || type === "PROP_FIRM") && balance 
+          ? String(parseFloat(String(balance)).toFixed(2)) 
+          : null,
+        currency: currency as "MYR" | "USD",
+      });
+
+      res.json(asset);
+    } catch (error: any) {
+      console.error("❌ POST /api/assets failed:", error);
+      return res.status(500).json({ 
+        error: "Server Error", 
+        message: error.message || "Failed to create portfolio asset",
+      });
+    }
+  });
+
+  app.delete("/api/assets/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to delete portfolio assets" });
+      }
+      
+      if (!storage) {
+        return res.status(500).json({ error: "Server Error", message: "Storage engine is not available" });
+      }
+
+      const userId = req.user!.id;
+      const { id } = req.params;
+
+      const deleted = await storage.deletePortfolioAsset(id, userId);
+      if (!deleted) {
+        return res.status(404).json({ 
+          error: "Not Found", 
+          message: "Portfolio asset not found" 
+        });
+      }
+
+      res.json({ success: true, message: "Portfolio asset deleted successfully" });
+    } catch (error: any) {
+      console.error("❌ DELETE /api/assets/:id failed:", error);
+      return res.status(500).json({ 
+        error: "Server Error", 
+        message: error.message || "Failed to delete portfolio asset",
+      });
+    }
+  });
+
+  console.log("✅ GET /api/assets route registered");
+  console.log("✅ POST /api/assets route registered");
+  console.log("✅ DELETE /api/assets/:id route registered");
+  console.log("✅ GET /api/settings route registered");
+  console.log("✅ POST /api/settings route registered");
   console.log("✅ All routes registered successfully");
   return httpServer;
 }

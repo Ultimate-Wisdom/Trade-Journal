@@ -344,7 +344,7 @@ export default function Dashboard() {
                 <p className="text-[0.7rem] md:text-sm text-muted-foreground mt-1 max-w-prose">
                   {journalTrades.length > 0 
                     ? "Keep logging trades to generate AI insights." 
-                    : "Welcome to OPES. Log your first trade to unlock insights."}
+                    : "Welcome to OPES Forge. Log your first trade to unlock insights."}
                 </p>
               </div>
             </div>

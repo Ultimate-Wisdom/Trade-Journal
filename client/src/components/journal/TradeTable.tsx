@@ -13,6 +13,7 @@ import { Trade, Account } from "@shared/schema";
 import { Trash2, Edit2 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useDateFormat } from "@/hooks/useDateFormat";
 
 interface TradeTableProps {
   trades: Trade[];
@@ -35,16 +36,6 @@ const calculateRRR = (entry: number, sl?: number, tp?: number) => {
   return `1:${ratio.toFixed(1)}`;
 };
 
-// Helper to format date
-const formatDate = (date: Date | null | undefined) => {
-  if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  });
-};
-
 export function TradeTable({
   trades,
   onDelete,
@@ -52,6 +43,9 @@ export function TradeTable({
   showRRR,
   showRisk,
 }: TradeTableProps) {
+  // Use date formatting hook that respects user settings
+  const { formatDate } = useDateFormat();
+  
   // Fetch accounts for display names
   const { data: accounts } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
@@ -156,7 +150,7 @@ export function TradeTable({
                   className="group cursor-pointer hover:bg-muted/50"
                 >
                   <TableCell className="font-medium text-muted-foreground">
-                    {formatDate(trade.createdAt)}
+                    {formatDate(trade.entryDate || trade.createdAt)}
                   </TableCell>
 
                   {showAccount && (

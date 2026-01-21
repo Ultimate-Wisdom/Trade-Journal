@@ -31,8 +31,14 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use(vite.middlewares);
 
+  // Catch-all for SPA routing - but EXCLUDE /api routes
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
+
+    // CRITICAL: Don't serve HTML for API routes - let Express handle them
+    if (url.startsWith("/api")) {
+      return next(); // Let Express API routes handle this
+    }
 
     try {
       const clientTemplate = path.resolve(

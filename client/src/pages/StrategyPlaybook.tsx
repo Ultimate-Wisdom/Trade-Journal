@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Edit, Loader2, Brain, BookOpen, TrendingUp, Target, BarChart3, DollarSign, X, ArrowLeft, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Edit, Loader2, Brain, BookOpen, TrendingUp, Target, BarChart3, DollarSign, X, ArrowLeft, RefreshCw, ScrollText, CircleDollarSign } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -80,15 +80,6 @@ export default function StrategyPlaybook() {
     enabled: !!selectedTemplateId,
   });
 
-  // Fetch all unique strategy names from trades
-  const { data: tradeStrategies = [] } = useQuery<string[]>({
-    queryKey: ["/api/trades/strategies"],
-    queryFn: async () => {
-      const res = await fetch("/api/trades/strategies", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch strategies");
-      return res.json();
-    },
-  });
 
   // Parse rules from JSON string
   const [rules, setRules] = useState<string[]>([]);
@@ -344,22 +335,42 @@ export default function StrategyPlaybook() {
     updateTweaksMutation.mutate(tweaks);
   };
 
-  // Strategy migration mutation
+  // Strategy rename mutation (updates both template and trades)
   const migrateStrategyMutation = useMutation({
     mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) => {
-      const res = await fetch("/api/trades/migrate-strategy", {
+      const res = await fetch("/api/templates/rename-strategy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ oldName, newName }),
         credentials: "include",
       });
 
+      // Check if response is OK
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to migrate strategy");
+        // Try to parse error as JSON, fallback to status text
+        let errorMessage = `Failed to rename strategy (${res.status})`;
+        try {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const error = await res.json();
+            errorMessage = error.message || error.error || errorMessage;
+          } else {
+            const text = await res.text();
+            errorMessage = text || errorMessage;
+          }
+        } catch (parseError) {
+          // If parsing fails, use status text
+          errorMessage = res.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      return res.json();
+      // Parse successful response
+      try {
+        return await res.json();
+      } catch (jsonError) {
+        throw new Error("Invalid response from server");
+      }
     },
     onSuccess: (data) => {
       // Invalidate all trade-related queries to refresh Dashboard, Journal, and Stats
@@ -372,8 +383,8 @@ export default function StrategyPlaybook() {
         queryClient.invalidateQueries({ queryKey: [`/api/templates/${selectedTemplateId}/stats`] });
       }
       toast({
-        title: "Strategy migrated",
-        description: data.message || `Successfully migrated ${data.updatedCount} trade(s)`,
+        title: "Strategy renamed",
+        description: data.message || `Successfully renamed strategy. Updated ${data.templateUpdated} template(s) and ${data.tradesUpdated} trade(s).`,
       });
       setOldStrategyName("");
       setNewStrategyName("");
@@ -381,23 +392,23 @@ export default function StrategyPlaybook() {
     onError: (error: any) => {
       toast({
         variant: "destructive",
-        title: "Migration failed",
-        description: error.message || "Failed to migrate strategy",
+        title: "Rename failed",
+        description: error.message || "Failed to rename strategy",
       });
     },
   });
 
   const handleMigrateStrategy = () => {
-    if (!oldStrategyName || !newStrategyName) {
+    if (!oldStrategyName || !newStrategyName.trim()) {
       toast({
         variant: "destructive",
         title: "Validation Error",
-        description: "Please select both old and new strategy names",
+        description: "Please select an old strategy name and enter a new strategy name",
       });
       return;
     }
 
-    if (oldStrategyName === newStrategyName) {
+    if (oldStrategyName === newStrategyName.trim()) {
       toast({
         variant: "destructive",
         title: "Validation Error",
@@ -408,7 +419,7 @@ export default function StrategyPlaybook() {
 
     migrateStrategyMutation.mutate({
       oldName: oldStrategyName,
-      newName: newStrategyName,
+      newName: newStrategyName.trim(),
     });
   };
 
@@ -598,7 +609,7 @@ export default function StrategyPlaybook() {
                       Rename Old Strategy
                     </CardTitle>
                     <CardDescription>
-                      Update all trades that use an old strategy name to use a new name
+                      Rename a Playbook strategy and update all trades that use it
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -607,44 +618,40 @@ export default function StrategyPlaybook() {
                         <Label htmlFor="oldStrategy">Old Name</Label>
                         <Select value={oldStrategyName} onValueChange={setOldStrategyName}>
                           <SelectTrigger id="oldStrategy">
-                            <SelectValue placeholder="Select old strategy name from trades" />
+                            <SelectValue placeholder="Select strategy from Playbook" />
                           </SelectTrigger>
                           <SelectContent>
-                            {tradeStrategies.length > 0 ? (
-                              tradeStrategies
-                                .filter((strategy) => strategy && strategy.trim())
-                                .map((strategy) => (
-                                  <SelectItem key={strategy} value={strategy}>
-                                    {strategy}
+                            {templates.length > 0 ? (
+                              templates
+                                .filter((template) => template.name && template.name.trim())
+                                .map((template) => (
+                                  <SelectItem key={template.id} value={template.name}>
+                                    {template.name}
                                   </SelectItem>
                                 ))
                             ) : (
                               <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                No strategies found in trades
+                                No strategies found in Playbook
                               </div>
                             )}
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
-                          Shows all strategy names from your trade history (including orphaned names)
+                          Select a strategy from your Playbook to rename
                         </p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="newStrategy">New Name</Label>
-                        <Select value={newStrategyName} onValueChange={setNewStrategyName}>
-                          <SelectTrigger id="newStrategy">
-                            <SelectValue placeholder="Select new strategy name" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {templates
-                              .filter((template) => template.name && template.name.trim())
-                              .map((template) => (
-                                <SelectItem key={template.id} value={template.name}>
-                                  {template.name}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          id="newStrategy"
+                          type="text"
+                          placeholder="Enter new strategy name"
+                          value={newStrategyName}
+                          onChange={(e) => setNewStrategyName(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Type the new name for this strategy
+                        </p>
                       </div>
                     </div>
                     <Button
@@ -660,7 +667,7 @@ export default function StrategyPlaybook() {
                       ) : (
                         <>
                           <RefreshCw className="h-4 w-4 mr-2" />
-                          Update All Trades
+                          Rename Strategy
                         </>
                       )}
                     </Button>
@@ -672,7 +679,7 @@ export default function StrategyPlaybook() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2">
-                        <Target className="h-5 w-5" />
+                        <ScrollText className="h-5 w-5" />
                         The Rules
                       </CardTitle>
                       {!isEditingRules ? (
@@ -858,7 +865,7 @@ export default function StrategyPlaybook() {
                             <div className="space-y-2">
                               {strategyStats.bestAsset && strategyStats.bestAsset !== "—" && (
                                 <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
-                                  <Target className="h-4 w-4 text-primary" />
+                                  <CircleDollarSign className="h-4 w-4 text-primary" />
                                   <span className="text-sm">
                                     <strong>Best Asset:</strong> {strategyStats.bestAsset}
                                   </span>

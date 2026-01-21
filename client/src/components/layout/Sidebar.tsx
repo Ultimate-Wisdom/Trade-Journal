@@ -112,8 +112,8 @@ export function Sidebar() {
             </div>
           )}
           <div className="flex flex-col min-w-0">
-            <span className="font-mono text-2xl font-bold tracking-tighter text-amber-400 leading-none">
-              OPES
+            <span className="font-sans text-2xl font-extrabold tracking-tight text-amber-400 drop-shadow-md leading-none">
+              OPES FORGE
             </span>
             <span className="font-sans text-[10px] text-slate-500 leading-none">
               by Fhynk Capital

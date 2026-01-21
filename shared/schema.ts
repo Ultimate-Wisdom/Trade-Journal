@@ -191,6 +191,46 @@ export const tradeTemplates = pgTable("trade_templates", {
 });
 
 // ==========================================
+// 9. USER SETTINGS
+// ==========================================
+export const userSettings = pgTable("user_settings", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(), // One settings record per user
+  currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+  defaultBalance: numeric("default_balance", { precision: 20, scale: 2 }).default("10000").notNull(),
+  dateFormat: varchar("date_format", { length: 20 }).default("DD-MM-YYYY").notNull(), // DD-MM-YYYY or MM-DD-YYYY
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==========================================
+// 10. PORTFOLIO ASSETS
+// ==========================================
+export const portfolioAssets = pgTable("portfolio_assets", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(), // e.g., "Bitcoin", "Maybank", "Emergency Fund"
+  location: text("location"), // e.g., "Luno", "Phantom Wallet", "CIMB", "Maybank"
+  type: varchar("type", { length: 20 }).notNull(), // "CASH", "INVESTMENT", "CRYPTO", "PROP_FIRM"
+  ticker: text("ticker"), // e.g., "BTC", "SOL" (nullable, for Crypto/Stocks)
+  apiId: text("api_id"), // e.g., "bitcoin", "solana" for CoinGecko (nullable)
+  quantity: numeric("quantity", { precision: 20, scale: 8 }), // For Crypto/Stocks (nullable)
+  balance: numeric("balance", { precision: 20, scale: 2 }), // For Cash/Prop accounts (nullable)
+  currency: varchar("currency", { length: 3 }).default("MYR").notNull(), // "MYR" or "USD"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==========================================
 // 8. SCHEMAS & TYPES
 // ==========================================
 export const insertAccountSchema = createInsertSchema(accounts).omit({
@@ -217,6 +257,16 @@ export const insertTradeTemplateSchema = createInsertSchema(tradeTemplates).omit
   id: true,
   createdAt: true,
 });
+export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertPortfolioAssetSchema = createInsertSchema(portfolioAssets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -232,3 +282,7 @@ export type TradeTag = typeof tradeTags.$inferSelect;
 export type InsertTradeTag = typeof tradeTags.$inferInsert;
 export type TradeTemplate = typeof tradeTemplates.$inferSelect;
 export type InsertTradeTemplate = typeof tradeTemplates.$inferInsert;
+export type UserSettings = typeof userSettings.$inferSelect;
+export type InsertUserSettings = typeof userSettings.$inferInsert;
+export type PortfolioAsset = typeof portfolioAssets.$inferSelect;
+export type InsertPortfolioAsset = typeof portfolioAssets.$inferInsert;

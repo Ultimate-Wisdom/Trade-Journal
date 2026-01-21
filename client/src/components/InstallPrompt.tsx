@@ -76,7 +76,7 @@ export function InstallPrompt() {
     <Dialog open={showDialog} onOpenChange={setShowDialog}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Install OPES Trading Journal</DialogTitle>
+          <DialogTitle>Install OPES Forge</DialogTitle>
           <DialogDescription>
             Install this app on your device for a better experience. You can access it offline and add it to your home screen.
           </DialogDescription>

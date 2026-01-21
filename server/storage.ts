@@ -1,4 +1,4 @@
-import { users, trades, accounts, backtests, tags, tradeTags, tradeTemplates } from "@shared/schema";
+import { users, trades, accounts, backtests, tags, tradeTags, tradeTemplates, userSettings, portfolioAssets } from "@shared/schema";
 import {
   type User,
   type InsertUser,
@@ -13,6 +13,10 @@ import {
   type TradeTag,
   type TradeTemplate,
   type InsertTradeTemplate,
+  type UserSettings,
+  type InsertUserSettings,
+  type PortfolioAsset,
+  type InsertPortfolioAsset,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -39,6 +43,7 @@ export interface IStorage {
   ): Promise<Trade | undefined>;
   deleteTrade(id: string, userId: string): Promise<boolean>;
   migrateStrategy(userId: string, oldName: string, newName: string): Promise<number>;
+  renameStrategy(userId: string, oldName: string, newName: string): Promise<{ templateUpdated: number; tradesUpdated: number }>;
 
   // Account Methods
   getAccounts(userId: string): Promise<Account[]>;
@@ -73,6 +78,16 @@ export interface IStorage {
     updates: Partial<InsertTradeTemplate>,
   ): Promise<TradeTemplate | undefined>;
   deleteTradeTemplate(id: string, userId: string): Promise<boolean>;
+
+  // User Settings Methods
+  getUserSettings(userId: string): Promise<UserSettings | undefined>;
+  upsertUserSettings(userId: string, settings: Partial<InsertUserSettings>): Promise<UserSettings>;
+
+  // Portfolio Asset Methods
+  getPortfolioAssets(userId: string): Promise<PortfolioAsset[]>;
+  createPortfolioAsset(asset: InsertPortfolioAsset): Promise<PortfolioAsset>;
+  updatePortfolioAsset(id: string, userId: string, updates: Partial<InsertPortfolioAsset>): Promise<PortfolioAsset | undefined>;
+  deletePortfolioAsset(id: string, userId: string): Promise<boolean>;
 
   // Session Store
   sessionStore: session.Store;
@@ -171,6 +186,32 @@ export class DatabaseStorage implements IStorage {
       ))
       .returning();
     return result.length;
+  }
+
+  async renameStrategy(userId: string, oldName: string, newName: string): Promise<{ templateUpdated: number; tradesUpdated: number }> {
+    // Step A: Update the template name in the templates table
+    const templateResult = await db
+      .update(tradeTemplates)
+      .set({ name: newName })
+      .where(and(
+        eq(tradeTemplates.userId, userId),
+        eq(tradeTemplates.name, oldName)
+      ))
+      .returning();
+    const templateUpdated = templateResult.length;
+
+    // Step B: Update all trades that use this strategy name
+    const tradesResult = await db
+      .update(trades)
+      .set({ strategy: newName })
+      .where(and(
+        eq(trades.userId, userId),
+        eq(trades.strategy, oldName)
+      ))
+      .returning();
+    const tradesUpdated = tradesResult.length;
+
+    return { templateUpdated, tradesUpdated };
   }
 
   // --- ACCOUNT METHODS ---
@@ -315,6 +356,89 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(tradeTemplates)
       .where(and(eq(tradeTemplates.id, id), eq(tradeTemplates.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // --- USER SETTINGS METHODS ---
+  async getUserSettings(userId: string): Promise<UserSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId));
+    return settings;
+  }
+
+  async upsertUserSettings(
+    userId: string,
+    settings: Partial<InsertUserSettings>,
+  ): Promise<UserSettings> {
+    // Check if settings exist
+    const existing = await this.getUserSettings(userId);
+    
+    if (existing) {
+      // Update existing settings
+      const [updated] = await db
+        .update(userSettings)
+        .set({
+          ...settings,
+          updatedAt: new Date(),
+        })
+        .where(eq(userSettings.userId, userId))
+        .returning();
+      return updated;
+    } else {
+      // Create new settings
+      const [created] = await db
+        .insert(userSettings)
+        .values({
+          userId,
+          currency: settings.currency || "USD",
+          defaultBalance: settings.defaultBalance || "10000",
+          dateFormat: (settings.dateFormat || "DD-MM-YYYY") as "DD-MM-YYYY" | "MM-DD-YYYY",
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  // --- PORTFOLIO ASSET METHODS ---
+  async getPortfolioAssets(userId: string): Promise<PortfolioAsset[]> {
+    return await db
+      .select()
+      .from(portfolioAssets)
+      .where(eq(portfolioAssets.userId, userId))
+      .orderBy(desc(portfolioAssets.createdAt));
+  }
+
+  async createPortfolioAsset(asset: InsertPortfolioAsset): Promise<PortfolioAsset> {
+    const [created] = await db
+      .insert(portfolioAssets)
+      .values(asset)
+      .returning();
+    return created;
+  }
+
+  async updatePortfolioAsset(
+    id: string,
+    userId: string,
+    updates: Partial<InsertPortfolioAsset>,
+  ): Promise<PortfolioAsset | undefined> {
+    const [updated] = await db
+      .update(portfolioAssets)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(portfolioAssets.id, id), eq(portfolioAssets.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deletePortfolioAsset(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(portfolioAssets)
+      .where(and(eq(portfolioAssets.id, id), eq(portfolioAssets.userId, userId)))
       .returning();
     return result.length > 0;
   }

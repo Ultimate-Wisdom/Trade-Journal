@@ -125,8 +125,8 @@ export function MobileNav() {
                   </div>
                 )}
                 <div className="flex flex-col min-w-0">
-                  <span className="font-mono font-bold text-2xl text-amber-400 leading-none">
-                    OPES
+                  <span className="font-sans font-extrabold text-2xl tracking-tight text-amber-400 drop-shadow-md leading-none">
+                    OPES FORGE
                   </span>
                   <span className="font-sans text-[10px] text-slate-500 leading-none">
                     by Fhynk Capital
@@ -230,8 +230,8 @@ export function MobileNav() {
           </div>
         )}
         <div className="flex flex-col min-w-0">
-          <span className="font-mono text-xl font-bold tracking-tighter text-amber-400 leading-none">
-            OPES
+          <span className="font-sans text-xl font-extrabold tracking-tight text-amber-400 drop-shadow-md leading-none">
+            OPES FORGE
           </span>
           <span className="font-sans text-[10px] text-slate-500 leading-none">
             by Fhynk Capital
