@@ -1297,6 +1297,9 @@ export async function registerRoutes(
   // ==========================================
   app.get("/api/assets", async (req, res) => {
     try {
+      // Disable caching to ensure live logs on every request
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to view portfolio assets" });
       }
@@ -1308,7 +1311,7 @@ export async function registerRoutes(
       const userId = req.user!.id;
       const assets = await storage.getPortfolioAssets(userId);
 
-      // Extract crypto API IDs for live price fetching
+      // Extract crypto API IDs for live price fetching (sanitize will happen in getLivePrices)
       const cryptoApiIds = assets
         .filter((asset) => asset.type === "CRYPTO" && asset.apiId)
         .map((asset) => asset.apiId!)
@@ -1317,36 +1320,51 @@ export async function registerRoutes(
       // Fetch live prices for all crypto assets
       const prices = await getLivePrices(cryptoApiIds);
 
-      // Enrich assets with calculated USD values
-      const enrichedAssets = assets.map((asset) => {
-        let calculatedValueUsd: number | null = null;
-
-        if (asset.type === "CRYPTO" && asset.apiId && asset.quantity) {
-          // Calculate: Quantity * Live Price USD
-          calculatedValueUsd = calculateCryptoValue(asset.quantity, asset.apiId, prices);
-        } else if (asset.type === "CASH" || asset.type === "INVESTMENT") {
-          // Calculate: Balance converted to USD
-          if (asset.balance) {
-            const balance = typeof asset.balance === "string" ? parseFloat(asset.balance) : Number(asset.balance);
-            if (asset.currency === "USD") {
-              calculatedValueUsd = balance;
-            } else if (asset.currency === "MYR") {
-              calculatedValueUsd = balance / 4.45; // MYR to USD conversion
+      // Process assets: preserve original balance, calculate USD value in calculatedValueUsd
+      const processedAssets = assets.map((asset) => {
+        // Preserve original balance for backward compatibility
+        const newAsset = { ...asset, originalBalance: asset.balance };
+        
+        // 1. Handle Crypto: Value comes from Price * Quantity
+        if (newAsset.type === 'CRYPTO' && newAsset.apiId) {
+          const sanitizedApiId = newAsset.apiId.trim().toLowerCase();
+          const price = prices.get(sanitizedApiId) || 0;
+          
+          // Debug logging for specific assets
+          if (sanitizedApiId === 'jito-staked-sol') {
+            console.log('🔍 Found Jito in DB. Raw ID:', newAsset.apiId, 'Sanitized ID:', sanitizedApiId, 'Price:', price);
+          }
+          
+          if (price > 0 && newAsset.quantity) {
+            // Crypto balance is irrelevant for value, so we use quantity * price
+            newAsset.calculatedValueUsd = Number(newAsset.quantity) * price;
+          } else {
+            newAsset.calculatedValueUsd = 0;
+            if (price === 0) {
+              console.warn(`⚠️  No price found for crypto asset "${newAsset.name}" (ID: "${newAsset.apiId}", sanitized: "${sanitizedApiId}"). Available prices:`, Array.from(prices.keys()));
             }
           }
-        } else if (asset.type === "PROP_FIRM" && asset.balance) {
-          // Prop Firm: Balance in USD (already stored as USD)
-          const balance = typeof asset.balance === "string" ? parseFloat(asset.balance) : Number(asset.balance);
-          calculatedValueUsd = balance;
+        } 
+        // 2. Handle Cash (MYR): Value comes from Balance / Rate
+        else if (newAsset.currency === 'MYR') {
+          // CRITICAL: Keep newAsset.balance as the original RM amount (e.g., 16475)
+          // Only put the converted value into the calculated field
+          newAsset.calculatedValueUsd = Number(newAsset.balance) / 4.45;
+        } 
+        // 3. Handle Cash/Investment (USD) and Prop Firm: Value is just the Balance
+        else {
+          newAsset.calculatedValueUsd = Number(newAsset.balance) || 0;
         }
 
-        return {
-          ...asset,
-          calculatedValueUsd,
-        };
+        // Debug: Log the final values being sent
+        if (newAsset.type === "CRYPTO" || newAsset.currency === "MYR") {
+          console.log(`📊 Asset: ${newAsset.name} | Type: ${newAsset.type} | Currency: ${newAsset.currency} | Original Balance: ${newAsset.balance} | Calculated USD: ${newAsset.calculatedValueUsd}`);
+        }
+
+        return newAsset;
       });
 
-      res.json(enrichedAssets);
+      res.json(processedAssets);
     } catch (error: any) {
       console.error("❌ GET /api/assets failed:", error);
       return res.status(500).json({ 
@@ -1451,6 +1469,117 @@ export async function registerRoutes(
     }
   });
 
+  app.put("/api/assets/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Unauthorized", message: "You must be logged in to update portfolio assets" });
+      }
+      
+      if (!storage) {
+        return res.status(500).json({ error: "Server Error", message: "Storage engine is not available" });
+      }
+
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { name, type, balance, currency, location, ticker, apiId, quantity } = req.body;
+
+      // Validate required fields
+      if (!name || !type || !currency) {
+        return res.status(400).json({ 
+          error: "Validation Error", 
+          message: "Name, type, and currency are required" 
+        });
+      }
+
+      // Validate type
+      const validTypes = ["CASH", "INVESTMENT", "CRYPTO", "PROP_FIRM"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ 
+          error: "Validation Error", 
+          message: `Type must be one of: ${validTypes.join(", ")}` 
+        });
+      }
+
+      // Validate currency
+      if (!["MYR", "USD"].includes(currency)) {
+        return res.status(400).json({ 
+          error: "Validation Error", 
+          message: "Currency must be either 'MYR' or 'USD'" 
+        });
+      }
+
+      // Type-specific validation
+      if (type === "CRYPTO") {
+        // Crypto requires quantity and apiId
+        if (!quantity || quantity === null || !apiId || !ticker) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: "Crypto assets require quantity, ticker, and apiId (CoinGecko ID)" 
+          });
+        }
+        const qty = parseFloat(String(quantity));
+        if (isNaN(qty) || qty <= 0) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: "Quantity must be a positive number" 
+          });
+        }
+      } else {
+        // CASH, INVESTMENT, PROP_FIRM require balance
+        if (!balance || balance === null) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: `${type} assets require a balance` 
+          });
+        }
+        const bal = parseFloat(String(balance));
+        if (isNaN(bal) || bal < 0) {
+          return res.status(400).json({ 
+            error: "Validation Error", 
+            message: "Balance must be a non-negative number" 
+          });
+        }
+      }
+
+      // Prepare update object
+      const updates: any = {
+        name: sanitizeString(name),
+        type,
+        currency,
+        location: location ? sanitizeString(location) : null,
+      };
+
+      if (type === "CRYPTO") {
+        updates.quantity = String(quantity);
+        updates.ticker = ticker ? sanitizeString(ticker).toUpperCase() : null;
+        updates.apiId = apiId ? sanitizeString(apiId).toLowerCase() : null;
+        updates.balance = null; // Clear balance for crypto
+      } else {
+        updates.balance = String(balance);
+        updates.quantity = null; // Clear quantity for non-crypto
+        updates.ticker = null; // Clear ticker for non-crypto
+        updates.apiId = null; // Clear apiId for non-crypto
+      }
+
+      const updatedAsset = await storage.updatePortfolioAsset(id, userId, updates);
+      
+      if (!updatedAsset) {
+        return res.status(404).json({ 
+          error: "Not Found", 
+          message: "Portfolio asset not found" 
+        });
+      }
+
+      res.json(updatedAsset);
+    } catch (error: any) {
+      console.error("❌ PUT /api/assets/:id failed:", error);
+      return res.status(500).json({ 
+        error: "Server Error", 
+        message: error.message || "Failed to update portfolio asset",
+      });
+    }
+  });
+
   app.delete("/api/assets/:id", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -1484,6 +1613,7 @@ export async function registerRoutes(
 
   console.log("✅ GET /api/assets route registered");
   console.log("✅ POST /api/assets route registered");
+  console.log("✅ PUT /api/assets/:id route registered");
   console.log("✅ DELETE /api/assets/:id route registered");
   console.log("✅ GET /api/settings route registered");
   console.log("✅ POST /api/settings route registered");
