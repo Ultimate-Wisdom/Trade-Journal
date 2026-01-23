@@ -31,6 +31,69 @@ import { Trade } from "@/lib/mockData";
 import { useMemo, useState } from "react";
 import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 
+/**
+ * Calculate Risk:Reward Ratio from entry, stop loss, and take profit
+ * Returns the numeric ratio (e.g., 2.0 for 1:2.0) or null if invalid
+ */
+export function calculateRRR(
+  entry: number | undefined,
+  sl: number | undefined,
+  tp: number | undefined,
+  direction: "Long" | "Short" | null | undefined
+): number | null {
+  if (!entry || !sl || !tp) return null;
+
+  const entryNum = Number(entry);
+  const slNum = Number(sl);
+  const tpNum = Number(tp);
+
+  if (isNaN(entryNum) || isNaN(slNum) || isNaN(tpNum)) return null;
+
+  // Validate based on direction
+  if (direction === "Long") {
+    if (slNum >= entryNum) return null; // SL must be lower for Long
+    if (tpNum <= entryNum) return null; // TP must be higher for Long
+  } else if (direction === "Short") {
+    if (slNum <= entryNum) return null; // SL must be higher for Short
+    if (tpNum >= entryNum) return null; // TP must be lower for Short
+  }
+
+  const risk = Math.abs(entryNum - slNum);
+  const reward = Math.abs(tpNum - entryNum);
+
+  if (risk === 0) return null;
+
+  const ratio = reward / risk;
+  return ratio;
+}
+
+/**
+ * Calculate average Risk:Reward Ratio from a list of trades
+ * Uses the same calculation logic as Dashboard stats
+ * Returns the numeric average (e.g., 2.0 for 1:2.0) or 0 if no valid trades
+ */
+export function calculateAverageRR(trades: Trade[]): number {
+  let totalRR = 0;
+  let rrCount = 0;
+
+  trades.forEach((trade) => {
+    // Calculate R:R from entry, stop loss, and take profit
+    const calculatedRR = calculateRRR(
+      trade.entryPrice,
+      trade.slPrice,
+      trade.tpPrice,
+      trade.direction
+    );
+    
+    if (calculatedRR !== null) {
+      totalRR += calculatedRR;
+      rrCount++;
+    }
+  });
+
+  return rrCount > 0 ? totalRR / rrCount : 0;
+}
+
 export default function Dashboard() {
   const { maskValue } = usePrivacyMode();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -99,17 +162,25 @@ export default function Dashboard() {
       pnl: t.pnl ? Number(t.pnl) : undefined,
       status: (t.status || "Open") as "Open" | "Closed" | "Pending",
       date: (() => {
-        if (t.createdAt) {
-          const d = new Date(t.createdAt);
-          if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        // Prefer entryDate (user-selected date), fallback to createdAt
+        const dateSource = t.entryDate || t.createdAt;
+        if (dateSource) {
+          const d = new Date(dateSource);
+          if (!isNaN(d.getTime())) {
+            // Use local date string (not UTC) to avoid timezone issues
+            return d.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD in local time
+          }
         }
-        return new Date().toISOString().split("T")[0];
+        // Fallback to today's local date
+        return new Date().toLocaleDateString('en-CA');
       })(),
+      entryDate: t.entryDate ? new Date(t.entryDate).toLocaleDateString('en-CA') : undefined,
       strategy: t.strategy || "",
       setup: t.setup || undefined,
       notes: t.notes || undefined,
       conviction: t.conviction ? Number(t.conviction) : undefined,
       marketRegime: t.marketRegime || undefined,
+      rrr: t.rrr || undefined,
     })) as Trade[];
   }, [filteredTrades]);
 
@@ -145,9 +216,16 @@ export default function Dashboard() {
         grossLoss += Math.abs(pnl);
       }
 
-      // Calculate RR if available (rrr = Risk:Reward Ratio)
-      if (trade.rrr) {
-        totalRR += Number(trade.rrr);
+      // Calculate R:R from entry, stop loss, and take profit (same as Trade Journal)
+      const calculatedRR = calculateRRR(
+        trade.entryPrice,
+        trade.slPrice,
+        trade.tpPrice,
+        trade.direction
+      );
+      
+      if (calculatedRR !== null) {
+        totalRR += calculatedRR;
         rrCount++;
       }
     });
@@ -363,7 +441,7 @@ export default function Dashboard() {
             </div>
             <div className="space-y-3 md:space-y-4">
               <MostProfitableDay trades={journalTrades} />
-              <PerformanceBenchmark trades={filteredTrades || []} />
+              <PerformanceBenchmark trades={journalTrades} />
               <SessionAnalysis trades={filteredTrades || []} />
             </div>
           </div>

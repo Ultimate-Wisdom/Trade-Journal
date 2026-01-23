@@ -14,72 +14,98 @@ interface Correlation {
   commonTrades: number;
 }
 
+/**
+ * Calculate Pearson Correlation Coefficient between two arrays of values
+ * Returns a value between -1 (perfect negative correlation) and +1 (perfect positive correlation)
+ */
+function calculatePearsonCorrelation(x: number[], y: number[]): number {
+  if (x.length !== y.length || x.length === 0) return 0;
+
+  const n = x.length;
+  const sumX = x.reduce((a, b) => a + b, 0);
+  const sumY = y.reduce((a, b) => a + b, 0);
+  const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+  const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
+  const sumY2 = y.reduce((sum, yi) => sum + yi * yi, 0);
+
+  const numerator = n * sumXY - sumX * sumY;
+  const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+
+  if (denominator === 0) return 0;
+  return numerator / denominator;
+}
+
 export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
   const correlations = useMemo(() => {
-    if (!trades || trades.length < 10) {
+    if (!trades || trades.length < 5) {
       return null;
     }
 
-    const closedTrades = trades.filter(t => parseFloat(t.pnl || "0") !== 0);
+    const closedTrades = trades.filter(t => {
+      const pnl = parseFloat(t.pnl || "0");
+      return pnl !== 0 && t.status === "Closed";
+    });
     
-    if (closedTrades.length < 10) {
+    if (closedTrades.length < 5) {
       return null;
     }
 
-    // Symbol correlation analysis
-    const symbolGroups = new Map<string, any[]>();
+    // Symbol correlation analysis using Pearson Correlation Coefficient
+    // Group trades by symbol and date
+    const symbolDateMap = new Map<string, Map<string, number>>(); // symbol -> date -> totalPnL
+    
     closedTrades.forEach(trade => {
       const symbol = trade.symbol || trade.pair;
       if (!symbol) return;
-      if (!symbolGroups.has(symbol)) {
-        symbolGroups.set(symbol, []);
+      
+      const tradeDate = trade.entryDate 
+        ? new Date(trade.entryDate).toDateString()
+        : new Date(trade.createdAt).toDateString();
+      
+      if (!symbolDateMap.has(symbol)) {
+        symbolDateMap.set(symbol, new Map());
       }
-      symbolGroups.get(symbol)!.push(trade);
+      
+      const dateMap = symbolDateMap.get(symbol)!;
+      const pnl = parseFloat(trade.pnl || "0");
+      const existingPnL = dateMap.get(tradeDate) || 0;
+      dateMap.set(tradeDate, existingPnL + pnl); // Sum PnL for same symbol on same day
     });
 
-    // Calculate correlation between symbols
-    const symbols = Array.from(symbolGroups.keys());
+    // Calculate Pearson correlation between symbol pairs
+    const symbols = Array.from(symbolDateMap.keys());
     const correlationPairs: Correlation[] = [];
 
     for (let i = 0; i < symbols.length; i++) {
       for (let j = i + 1; j < symbols.length; j++) {
         const symbol1 = symbols[i];
         const symbol2 = symbols[j];
-        const trades1 = symbolGroups.get(symbol1)!;
-        const trades2 = symbolGroups.get(symbol2)!;
+        const dateMap1 = symbolDateMap.get(symbol1)!;
+        const dateMap2 = symbolDateMap.get(symbol2)!;
 
-        // Find common time periods (same day)
-        const commonDays = new Set<string>();
-        trades1.forEach(t1 => {
-          const date1 = new Date(t1.createdAt || t1.entryDate).toDateString();
-          trades2.forEach(t2 => {
-            const date2 = new Date(t2.createdAt || t2.entryDate).toDateString();
-            if (date1 === date2) {
-              commonDays.add(date1);
-            }
-          });
-        });
+        // Find common trading days
+        const commonDays = Array.from(dateMap1.keys()).filter(day => dateMap2.has(day));
 
-        if (commonDays.size >= 3) {
-          // Calculate correlation based on outcome similarity
-          let matches = 0;
+        if (commonDays.length >= 3) {
+          // Build PnL vectors for common days
+          const pnlVector1: number[] = [];
+          const pnlVector2: number[] = [];
+
           commonDays.forEach(day => {
-            const day1Trades = trades1.filter(t => new Date(t.createdAt || t.entryDate).toDateString() === day);
-            const day2Trades = trades2.filter(t => new Date(t.createdAt || t.entryDate).toDateString() === day);
-            
-            const day1Win = day1Trades.some(t => parseFloat(t.pnl || "0") > 0);
-            const day2Win = day2Trades.some(t => parseFloat(t.pnl || "0") > 0);
-            
-            if (day1Win === day2Win) matches++;
+            pnlVector1.push(dateMap1.get(day)!);
+            pnlVector2.push(dateMap2.get(day)!);
           });
 
-          const correlation = matches / commonDays.size;
-          if (correlation > 0.6 || correlation < 0.4) {
+          // Calculate Pearson Correlation Coefficient
+          const correlation = calculatePearsonCorrelation(pnlVector1, pnlVector2);
+
+          // Only include significant correlations (high positive or high negative)
+          if (Math.abs(correlation) > 0.3) {
             correlationPairs.push({
               pair1: symbol1,
               pair2: symbol2,
               correlation,
-              commonTrades: commonDays.size,
+              commonTrades: commonDays.length,
             });
           }
         }
@@ -137,7 +163,8 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
     }).sort((a, b) => b.winRate - a.winRate);
 
     return {
-      symbolCorrelations: correlationPairs.sort((a, b) => Math.abs(0.5 - a.correlation) - Math.abs(0.5 - b.correlation)),
+      // Sort by absolute correlation value (highest first) to show most significant correlations
+      symbolCorrelations: correlationPairs.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation)),
       strategyStats: strategyStats.slice(0, 5),
       timeStats,
     };
@@ -156,7 +183,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              Need at least 10 closed trades for correlation analysis
+              Need at least 5 closed trades for correlation analysis
             </p>
           </div>
         </CardContent>
@@ -204,18 +231,20 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
                     <Badge
                       className={
                         corr.correlation > 0.7
-                          ? "bg-green-500/20 text-green-500"
-                          : corr.correlation < 0.3
-                          ? "bg-red-500/20 text-red-500"
-                          : "bg-yellow-500/20 text-yellow-500"
+                          ? "bg-red-500/20 text-red-500 border-red-500/30"
+                          : corr.correlation < 0.3 && corr.correlation > -0.3
+                          ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/30"
+                          : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
                       }
                     >
-                      {(corr.correlation * 100).toFixed(0)}%
+                      {corr.correlation >= 0 ? "+" : ""}{(corr.correlation * 100).toFixed(0)}%
                     </Badge>
                     <p className="text-xs text-muted-foreground mt-1">
                       {corr.correlation > 0.7
-                        ? "Strong +"
-                        : corr.correlation < 0.3
+                        ? "High Risk Coupling"
+                        : corr.correlation < 0.3 && corr.correlation > -0.3
+                        ? "Good Diversification"
+                        : corr.correlation < -0.3
                         ? "Inverse"
                         : "Moderate"}
                     </p>

@@ -175,13 +175,13 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
                       variant="outline" 
                       className="px-1.5 py-0.5 text-[10px] border-amber-500/50 bg-amber-500/10 text-amber-500"
                     >
-                      R:R {combo.rrr}
+                      Avg R:R {combo.rrr}
                     </Badge>
                   </div>
                   
                   {/* Row 3: Total Trades count */}
                   <p className="text-xs text-slate-500 mt-1">
-                    {combo.wins}/{combo.total} trades
+                    {combo.total} {combo.total === 1 ? 'trade' : 'trades'} • {combo.wins} {combo.wins === 1 ? 'win' : 'wins'}
                   </p>
                 </div>
               ))

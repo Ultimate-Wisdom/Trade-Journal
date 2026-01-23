@@ -16,11 +16,12 @@ interface EquityChartProps {
 }
 
 export function EquityChart({ selectedAccountId }: EquityChartProps) {
-  // Fetch all trades including adjustments for balance visualization
+  // Fetch only actual trades (exclude adjustments, deposits, withdrawals)
+  // This shows pure trading performance, not account balance changes
   const { data: allTrades } = useQuery<DBTrade[]>({
-    queryKey: ["/api/trades?include_adjustments=true"],
+    queryKey: ["/api/trades"],
     queryFn: async () => {
-      const res = await fetch("/api/trades?include_adjustments=true", {
+      const res = await fetch("/api/trades", {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch trades");
@@ -32,7 +33,84 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
     queryKey: ["/api/accounts"],
   });
 
-  // Calculate equity curve data
+  /**
+   * Generate pure trading performance curve
+   * Only includes actual trades (TRADE type), excludes deposits, withdrawals, and balance corrections
+   */
+  const generatePerformanceCurve = (
+    trades: DBTrade[],
+    initialBalance: number
+  ): { date: string; dateFull: Date; equity: number; dailyChange?: number }[] => {
+    // Filter to only include actual trades (exclude adjustments, deposits, withdrawals)
+    const tradingTrades = trades.filter((trade) => {
+      // Only include TRADE type
+      if (trade.tradeType && trade.tradeType !== "TRADE") return false;
+      // Exclude trades marked to exclude from stats
+      if (trade.excludeFromStats === true) return false;
+      return true;
+    });
+
+    // Sort trades chronologically
+    const sortedTrades = [...tradingTrades].sort((a, b) => {
+      const dateA = a.entryDate ? new Date(a.entryDate).getTime() : new Date(a.createdAt).getTime();
+      const dateB = b.entryDate ? new Date(b.entryDate).getTime() : new Date(b.createdAt).getTime();
+      return dateA - dateB;
+    });
+
+    // Build pure equity curve by accumulating only trading P&L
+    let runningEquity = initialBalance;
+    const equityData: { 
+      date: string; 
+      dateFull: Date;
+      equity: number; 
+      dailyChange?: number;
+    }[] = [];
+
+    // Add starting point
+    if (sortedTrades.length > 0) {
+      const firstTrade = sortedTrades[0];
+      const firstDate = firstTrade.entryDate 
+        ? new Date(firstTrade.entryDate) 
+        : new Date(firstTrade.createdAt);
+      equityData.push({
+        date: firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        dateFull: firstDate,
+        equity: initialBalance,
+      });
+    }
+
+    // Process each trade chronologically - only accumulate P&L from actual trades
+    sortedTrades.forEach((trade) => {
+      const pnl = trade.pnl ? Number(trade.pnl) : 0;
+      const previousEquity = runningEquity;
+      runningEquity += pnl; // Only add trading P&L, ignore deposits/withdrawals/corrections
+
+      const tradeDate = trade.entryDate 
+        ? new Date(trade.entryDate) 
+        : new Date(trade.createdAt);
+
+      equityData.push({
+        date: tradeDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        dateFull: tradeDate,
+        equity: Math.round(runningEquity * 100) / 100, // Round to 2 decimals
+        dailyChange: runningEquity - previousEquity,
+      });
+    });
+
+    // If no trades, show initial balance
+    if (equityData.length === 0) {
+      const today = new Date();
+      equityData.push({
+        date: today.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        dateFull: today,
+        equity: initialBalance,
+      });
+    }
+
+    return equityData;
+  };
+
+  // Calculate pure trading performance curve
   const data = useMemo(() => {
     if (!allTrades || !accounts) return [];
 
@@ -52,92 +130,94 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
       initialBalance = accounts.reduce((sum, acc) => sum + Number(acc.initialBalance || 0), 0);
     }
 
-    // Sort trades by date (entryDate or createdAt)
-    const sortedTrades = [...relevantTrades].sort((a, b) => {
-      const dateA = a.entryDate ? new Date(a.entryDate).getTime() : new Date(a.createdAt).getTime();
-      const dateB = b.entryDate ? new Date(b.entryDate).getTime() : new Date(b.createdAt).getTime();
-      return dateA - dateB;
-    });
-
-    // Build equity curve by accumulating P&L over time
-    let runningBalance = initialBalance;
-    const equityData: { date: string; equity: number }[] = [];
-
-    // Add starting point
-    if (sortedTrades.length > 0) {
-      const firstTrade = sortedTrades[0];
-      const firstDate = firstTrade.entryDate 
-        ? new Date(firstTrade.entryDate) 
-        : new Date(firstTrade.createdAt);
-      equityData.push({
-        date: firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        equity: initialBalance,
-      });
-    }
-
-    // Process each trade chronologically
-    sortedTrades.forEach((trade) => {
-      const pnl = trade.pnl ? Number(trade.pnl) : 0;
-      runningBalance += pnl;
-
-      const tradeDate = trade.entryDate 
-        ? new Date(trade.entryDate) 
-        : new Date(trade.createdAt);
-
-      equityData.push({
-        date: tradeDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        equity: Math.round(runningBalance * 100) / 100, // Round to 2 decimals
-      });
-    });
-
-    // If no trades, show initial balance
-    if (equityData.length === 0) {
-      equityData.push({
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        equity: initialBalance,
-      });
-    }
-
-    return equityData;
+    // Generate pure trading performance curve (excludes deposits, withdrawals, corrections)
+    return generatePerformanceCurve(relevantTrades, initialBalance);
   }, [allTrades, accounts, selectedAccountId]);
+
+  // Format currency with K/M suffixes
+  const formatCurrency = (value: number): string => {
+    if (value >= 1000000) {
+      return `$${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `$${(value / 1000).toFixed(1)}k`;
+    }
+    return `$${value.toFixed(0)}`;
+  };
+
+  // Custom tooltip component
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const equity = data.equity;
+      const dailyChange = data.dailyChange || 0;
+      const dateFull = data.dateFull || new Date();
+      
+      // Format date as "Mon, Jan 20"
+      const formattedDate = dateFull.toLocaleDateString("en-US", { 
+        weekday: "short", 
+        month: "short", 
+        day: "numeric" 
+      });
+
+      return (
+        <div className="bg-slate-900/95 border border-slate-700 rounded-lg shadow-xl backdrop-blur-md p-3 min-w-[160px]">
+          <p className="text-xs text-slate-400 mb-2 font-medium">{formattedDate}</p>
+          <div className="mb-1">
+            <p className="text-xs text-slate-500 mb-0.5">Pure Equity</p>
+            <p className="text-xl font-bold text-white">
+              {formatCurrency(equity)}
+            </p>
+          </div>
+          {dailyChange !== 0 && (
+            <p className={`text-sm font-medium ${dailyChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {dailyChange >= 0 ? "+" : ""}{formatCurrency(dailyChange)}
+            </p>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data}>
+        <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
           <defs>
             <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+          <CartesianGrid 
+            strokeDasharray="3 3" 
+            stroke="#333" 
+            vertical={false}
+            opacity={0.3}
+          />
           <XAxis 
             dataKey="date" 
-            stroke="hsl(var(--muted-foreground))" 
-            fontSize={12}
+            stroke="#666" 
+            fontSize={11}
             tickLine={false}
             axisLine={false}
+            tickCount={5}
+            tickMargin={8}
           />
           <YAxis 
-            stroke="hsl(var(--muted-foreground))" 
-            fontSize={12}
+            stroke="#666" 
+            fontSize={11}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => `$${value}`}
+            tickFormatter={formatCurrency}
+            domain={['auto', 'auto']}
+            tickMargin={8}
           />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: "hsl(var(--card))", 
-              borderColor: "hsl(var(--border))",
-              borderRadius: "var(--radius)",
-              color: "hsl(var(--foreground))"
-            }}
-            itemStyle={{ color: "hsl(var(--primary))" }}
-          />
+          <Tooltip content={<CustomTooltip />} />
           <Area
             type="monotone"
             dataKey="equity"
-            stroke="hsl(var(--primary))"
+            stroke="#3b82f6"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorEquity)"

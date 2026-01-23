@@ -102,11 +102,13 @@ export function TradeTable({
               const status = trade.status || "Open";
               
               // Determine exit condition
-              let exitCondition = trade.exitCondition || "—";
+              // Check for both null/undefined and empty string
+              const hasExitCondition = trade.exitCondition && trade.exitCondition.trim() !== "";
+              let exitCondition = hasExitCondition ? trade.exitCondition : "—";
               let exitConditionBadge = null;
               
               if (status === "Closed") {
-                if (trade.exitCondition) {
+                if (hasExitCondition) {
                   exitCondition = trade.exitCondition;
                 } else {
                   // Auto-determine based on P&L if not set
@@ -115,23 +117,30 @@ export function TradeTable({
                   } else if (pnl === 0) {
                     exitCondition = "Breakeven";
                   } else if (pnl < 0) {
-                    exitCondition = "SL";
+                    exitCondition = "Stop Loss";
                   } else {
-                    exitCondition = "TP";
+                    exitCondition = "Take Profit";
                   }
                 }
               } else {
                 exitCondition = "—";
               }
               
+              // Normalize exit condition for badge display (handle both full names and short forms)
+              const normalizedExitCondition = exitCondition.toLowerCase();
+              const isStopLoss = normalizedExitCondition === "stop loss" || normalizedExitCondition === "sl";
+              const isTakeProfit = normalizedExitCondition === "take profit" || normalizedExitCondition === "tp";
+              const isBreakeven = normalizedExitCondition === "breakeven" || normalizedExitCondition === "be";
+              const isManualClose = normalizedExitCondition.includes("manual close");
+              
               // Badge styling based on exit condition
-              if (exitCondition === "SL") {
+              if (isStopLoss) {
                 exitConditionBadge = <Badge className="bg-destructive/20 text-destructive hover:bg-destructive/30 font-mono text-xs">SL</Badge>;
-              } else if (exitCondition === "TP") {
+              } else if (isTakeProfit) {
                 exitConditionBadge = <Badge className="bg-profit/20 text-profit hover:bg-profit/30 font-mono text-xs">TP</Badge>;
-              } else if (exitCondition === "Breakeven") {
+              } else if (isBreakeven) {
                 exitConditionBadge = <Badge className="bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 font-mono text-xs">BE</Badge>;
-              } else if (exitCondition === "Manual Close") {
+              } else if (isManualClose) {
                 exitConditionBadge = (
                   <Badge 
                     className="bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 font-mono text-xs cursor-help" 

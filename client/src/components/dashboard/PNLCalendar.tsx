@@ -14,16 +14,32 @@ interface DailyPNL {
   wins: number;
 }
 
+/**
+ * Convert a date (string or Date object) to local date string (YYYY-MM-DD)
+ * Uses local timezone, not UTC
+ */
+function getLocalDateString(dateInput: string | Date): string {
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  // Use toLocaleDateString with 'en-CA' to get YYYY-MM-DD format in local time
+  return date.toLocaleDateString('en-CA');
+}
+
 export function PNLCalendar({ trades }: PNLCalendarProps) {
+  // Group trades by local date (not UTC)
   const dailyPNLMap = new Map<string, DailyPNL>();
 
   trades.forEach((trade) => {
-    const date = new Date(trade.date);
-    const dateStr = trade.date;
-    const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
+    // Get the trade date - prefer entryDate if available, otherwise use date field
+    const tradeDate = trade.entryDate || trade.date;
+    if (!tradeDate) return;
 
-    const existing = dailyPNLMap.get(dateStr) || {
-      date: dateStr,
+    // Convert to local date string (YYYY-MM-DD in local timezone)
+    const localDateStr = getLocalDateString(tradeDate);
+    const dateObj = new Date(tradeDate);
+    const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+
+    const existing = dailyPNLMap.get(localDateStr) || {
+      date: localDateStr,
       day: dayName,
       pnl: 0,
       trades: 0,
@@ -37,12 +53,16 @@ export function PNLCalendar({ trades }: PNLCalendarProps) {
       existing.wins += 1;
     }
 
-    dailyPNLMap.set(dateStr, existing);
+    dailyPNLMap.set(localDateStr, existing);
   });
 
-  const dailyPNLList = Array.from(dailyPNLMap.values()).sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  // Sort by date descending (newest first) and limit to top days
+  const dailyPNLList = Array.from(dailyPNLMap.values())
+    .sort((a, b) => {
+      // Compare dates as strings (YYYY-MM-DD format sorts correctly)
+      return b.date.localeCompare(a.date);
+    })
+    .slice(0, 12); // Show top 12 trading days (or all if less than 12)
 
   const maxPNL = Math.max(...dailyPNLList.map((d) => Math.abs(d.pnl)), 1);
 

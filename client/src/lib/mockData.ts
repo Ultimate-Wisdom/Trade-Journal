@@ -138,13 +138,46 @@ export const calculateStrategyWinrates = (trades: Trade[]) => {
     .sort((a, b) => b.winrate - a.winrate);
 };
 
+/**
+ * Parse RRR string (e.g., "1:2.0") to numeric value (e.g., 2.0)
+ */
+function parseRRRString(rrrString: string): number | null {
+  if (!rrrString || typeof rrrString !== 'string') return null;
+  
+  // Check if it contains a colon (e.g., "1:2.0")
+  if (rrrString.includes(':')) {
+    const parts = rrrString.split(':');
+    if (parts.length >= 2) {
+      const parsed = parseFloat(parts[1].trim());
+      if (!isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  } else {
+    // Try to parse as a plain number string
+    const parsed = parseFloat(rrrString);
+    if (!isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  
+  return null;
+}
+
 export const calculateTopStrategyRRRCombos = (trades: Trade[]) => {
-  const combos: Record<
+  // Group trades by strategy name
+  const strategyMap: Record<
     string,
-    { total: number; wins: number; strategy: string; rrr: string }
+    {
+      total: number;
+      wins: number;
+      totalPnl: number;
+      rrrValues: number[]; // Store numeric RRR values for averaging
+    }
   > = {};
 
   trades.forEach((trade) => {
+    // Only process closed trades with strategy and required price data
     if (
       trade.status !== "Closed" ||
       !trade.strategy ||
@@ -154,40 +187,76 @@ export const calculateTopStrategyRRRCombos = (trades: Trade[]) => {
     )
       return;
 
-    // Calculate RRR for this specific trade
-    const rrr = calculateRRR(
+    const strategyName = trade.strategy.trim();
+    
+    // Initialize strategy entry if it doesn't exist
+    if (!strategyMap[strategyName]) {
+      strategyMap[strategyName] = {
+        total: 0,
+        wins: 0,
+        totalPnl: 0,
+        rrrValues: [],
+      };
+    }
+
+    // Calculate RRR for this trade
+    const rrrString = calculateRRR(
       trade.entryPrice,
       trade.slPrice,
       trade.tpPrice,
       trade.direction,
     );
 
-    // Create a unique key for Strategy + RRR combination
-    const key = `${trade.strategy}|${rrr}`;
-
-    if (!combos[key]) {
-      combos[key] = { total: 0, wins: 0, strategy: trade.strategy, rrr };
+    // Parse RRR string to numeric value
+    const rrrValue = parseRRRString(rrrString);
+    if (rrrValue !== null) {
+      strategyMap[strategyName].rrrValues.push(rrrValue);
     }
 
-    combos[key].total++;
-    if ((trade.pnl || 0) > 0) {
-      combos[key].wins++;
+    // Update stats
+    strategyMap[strategyName].total++;
+    const pnl = Number(trade.pnl || 0);
+    strategyMap[strategyName].totalPnl += pnl;
+    if (pnl > 0) {
+      strategyMap[strategyName].wins++;
     }
   });
 
-  return Object.values(combos)
-    .filter((c) => c.total >= 1)
-    .map((c) => ({
-      name: c.strategy,
-      pair: c.rrr, // Using rrr as pair identifier for display
-      strategy: c.strategy,
-      rrr: c.rrr,
-      winrate: c.total > 0 ? (c.wins / c.total) * 100 : 0,
-      wins: c.wins,
-      total: c.total,
-    }))
-    .sort((a, b) => b.winrate - a.winrate)
-    .slice(0, 5);
+  // Convert to array and calculate aggregate stats
+  const strategies = Object.entries(strategyMap)
+    .map(([strategyName, data]) => {
+      const winrate = data.total > 0 ? (data.wins / data.total) * 100 : 0;
+      const avgRRR = data.rrrValues.length > 0
+        ? data.rrrValues.reduce((sum, val) => sum + val, 0) / data.rrrValues.length
+        : 0;
+      
+      // Format RRR back to "1:X.X" string for display
+      const rrrDisplay = avgRRR > 0 ? `1:${avgRRR.toFixed(1)}` : "N/A";
+
+      return {
+        name: strategyName,
+        pair: rrrDisplay, // For backward compatibility
+        strategy: strategyName,
+        rrr: rrrDisplay,
+        winrate,
+        wins: data.wins,
+        total: data.total,
+        totalPnl: data.totalPnl,
+        avgRRR, // Store numeric value for sorting
+      };
+    })
+    .filter((s) => s.total >= 1) // Only strategies with at least 1 trade
+    .sort((a, b) => {
+      // Primary sort: Win Rate (descending)
+      if (b.winrate !== a.winrate) {
+        return b.winrate - a.winrate;
+      }
+      // Secondary sort: Average RRR (descending)
+      return b.avgRRR - a.avgRRR;
+    })
+    .slice(0, 3); // Top 3 strategies
+
+  return strategies;
 };
 
 // === DATA EXPORTS ===

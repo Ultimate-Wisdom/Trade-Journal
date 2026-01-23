@@ -3,9 +3,11 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Target, TrendingUp, DollarSign, BarChart3, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useMemo } from "react";
+import { calculateAverageRR } from "@/pages/Dashboard";
+import { Trade } from "@/lib/mockData";
 
 interface PerformanceBenchmarkProps {
-  trades: any[];
+  trades: Trade[];
 }
 
 // Default benchmarks (can be made configurable later)
@@ -57,13 +59,9 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
       0
     );
 
-    // Calculate average R:R
-    const tradesWithRRR = closedTrades.filter(t => t.rrr || t.riskRewardRatio);
-    const currentAvgRRR = tradesWithRRR.length > 0
-      ? tradesWithRRR.reduce((sum, t) => {
-          return sum + parseFloat(t.rrr || t.riskRewardRatio || "0");
-        }, 0) / tradesWithRRR.length
-      : 0;
+    // Calculate average R:R using the same logic as Dashboard stats
+    // This ensures consistency across all widgets
+    const currentAvgRRR = calculateAverageRR(closedTrades as Trade[]);
 
     return {
       winRate: {
