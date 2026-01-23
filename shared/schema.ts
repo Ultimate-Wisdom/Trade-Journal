@@ -64,7 +64,7 @@ export const trades = pgTable("trades", {
   rrr: numeric("rrr", { precision: 10, scale: 2 }),
   riskAmount: numeric("risk_amount", { precision: 20, scale: 2 }), // Dollar amount risked (e.g., $15)
   riskPercent: numeric("risk_percent", { precision: 10, scale: 2 }), // Auto-calculated: (riskAmount / accountBalance) * 100
-  exitCondition: varchar("exit_condition", { length: 50 }), // "SL", "TP", "Breakeven", "Manual Close"
+  exitCondition: varchar("exit_condition", { length: 50 }), // "Stop Loss", "Take Profit", "Breakeven", "Manual Close Profit", "Manual Close Loss"
   exitReason: text("exit_reason"), // Reason for manual close
   swap: numeric("swap", { precision: 20, scale: 2 }),
   commission: numeric("commission", { precision: 20, scale: 2 }),

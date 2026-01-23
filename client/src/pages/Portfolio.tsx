@@ -222,8 +222,8 @@ export default function Portfolio() {
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
-        <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
-          <header className="mb-6 flex justify-between items-center">
+        <div className="container mx-auto p-0 md:p-6 max-w-7xl">
+          <header className="mb-6 flex justify-between items-center px-4 md:px-0">
             <h1 className="text-2xl md:text-3xl font-bold">Portfolio Hub</h1>
             <Button onClick={() => setOpen(true)} className="gap-2"><Plus className="h-4 w-4" /> Add Asset</Button>
           </header>

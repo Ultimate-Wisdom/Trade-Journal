@@ -115,7 +115,7 @@ export function validateExitCondition(condition: any): ValidationResult {
     return { isValid: true }; // Optional field
   }
   
-  const validConditions = ["SL", "TP", "Breakeven", "Manual Close"];
+  const validConditions = ["Stop Loss", "Take Profit", "Breakeven", "Manual Close Profit", "Manual Close Loss"];
   if (!validConditions.includes(condition)) {
     return { isValid: false, error: `Exit condition must be one of: ${validConditions.join(", ")}` };
   }

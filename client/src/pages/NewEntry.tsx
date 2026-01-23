@@ -569,57 +569,24 @@ export default function NewEntry() {
       }
     }
 
-    // Combine entry date and time if provided
-    // SAFE: Always wrap in new Date() before calling toISOString()
-    let entryDateTimeISO = null;
+    // Fix Date (The "Noon" Safety Lock) - Decouple Date and Time to prevent timezone bugs
+    let entryDateString: string | null = null;
     if (entryDate && typeof entryDate === 'string' && entryDate.trim() !== '') {
       try {
         // Ensure entryDate is a string in YYYY-MM-DD format
         const dateStr = String(entryDate).trim();
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-          console.warn("Invalid date format:", dateStr);
-          entryDateTimeISO = null;
-        } else {
-          let dateString: string;
-          if (entryTime && typeof entryTime === 'string' && entryTime.trim() !== '') {
-            // Ensure time is in HH:MM format (time input should already be in this format)
-            const timeStr = String(entryTime).trim();
-            const timeParts = timeStr.split(':');
-            if (timeParts.length === 2 && /^\d{2}:\d{2}$/.test(timeStr)) {
-              dateString = `${dateStr}T${timeStr}:00`;
-            } else {
-              // Fallback if time format is unexpected
-              dateString = `${dateStr}T12:00:00`;
-            }
-          } else {
-            dateString = `${dateStr}T12:00:00`; // Default to noon if no time specified
-          }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          // Force Noon: Create date at 12:00:00 to prevent timezone issues
+          const submissionDate = new Date(`${dateStr}T12:00:00`);
+          submissionDate.setHours(12, 0, 0, 0); // Explicitly set to noon
           
-          // SAFE: Create Date object and validate before calling toISOString()
-          const dateObj = new Date(dateString);
-          if (!isNaN(dateObj.getTime()) && dateObj instanceof Date) {
-            // SAFE: dateObj is guaranteed to be a valid Date object
-            // Wrap in new Date() again as extra safeguard before toISOString()
-            const safeDateObj = new Date(dateObj.getTime());
-            try {
-              const isoString = safeDateObj.toISOString();
-              if (typeof isoString === 'string') {
-                entryDateTimeISO = isoString;
-              } else {
-                entryDateTimeISO = null;
-              }
-            } catch (toISOError) {
-              console.error("Error calling toISOString() on date:", toISOError);
-              entryDateTimeISO = null;
-            }
-          } else {
-            // Invalid date, skip it
-            entryDateTimeISO = null;
+          if (!isNaN(submissionDate.getTime())) {
+            entryDateString = submissionDate.toISOString();
           }
         }
       } catch (error) {
-        console.error("Error parsing entry date/time:", error);
-        entryDateTimeISO = null;
+        console.error("Error parsing entry date:", error);
+        entryDateString = null;
       }
     }
 
@@ -628,31 +595,6 @@ export default function NewEntry() {
     const quantityNum = safeParseFloat(quantity) ?? 0;
     const stopLossNum = safeParseFloat(stopLoss) ?? 0;
     const takeProfitNum = safeParseFloat(takeProfit) ?? 0;
-
-    // Ensure entryDateTimeISO is a string (not a Date object) before JSON.stringify
-    // Double-check that entryDateTimeISO is actually a string
-    let entryDateString: string | null = null;
-    if (entryDateTimeISO) {
-      if (typeof entryDateTimeISO === 'string') {
-        entryDateString = entryDateTimeISO;
-      } else if (entryDateTimeISO instanceof Date) {
-        // Safety fallback - SAFE: wrap in new Date() before calling toISOString()
-        try {
-          const safeDate = new Date(entryDateTimeISO.getTime());
-          if (!isNaN(safeDate.getTime()) && typeof safeDate.toISOString === 'function') {
-            entryDateString = safeDate.toISOString();
-          } else {
-            entryDateString = null;
-          }
-        } catch (error) {
-          console.error("Error converting Date to ISO string:", error);
-          entryDateString = null;
-        }
-      } else {
-        // Convert to string as fallback
-        entryDateString = String(entryDateTimeISO);
-      }
-    }
     
     // Verify all payload values are serializable before creating the payload object
     const payload: Record<string, any> = {
@@ -679,6 +621,24 @@ export default function NewEntry() {
       entryTime: entryTime || null,
       entryDate: entryDateString,
     };
+
+    // Fix PnL (Auto-Negative for Losses, Auto-Positive for Profits)
+    let submissionPnl = payload.pnl;
+    if (submissionPnl !== null && submissionPnl !== undefined) {
+      submissionPnl = Number(submissionPnl);
+      
+      // FORCE NEGATIVE for bad outcomes
+      if (["Stop Loss", "Manual Close Loss"].includes(exitCondition)) {
+        submissionPnl = -Math.abs(submissionPnl);
+      }
+      // FORCE POSITIVE for good outcomes
+      else if (["Take Profit", "Manual Close Profit"].includes(exitCondition)) {
+        submissionPnl = Math.abs(submissionPnl);
+      }
+      // For Breakeven, leave it as is (likely 0 or small number)
+      
+      payload.pnl = submissionPnl;
+    }
 
       console.log("handleSaveTrade - Final payload entryDate:", payload.entryDate, typeof payload.entryDate);
       
@@ -928,36 +888,6 @@ export default function NewEntry() {
                     </div>
                   </div>
 
-                  {/* Entry Price */}
-                  <div className="space-y-2">
-                    <Label htmlFor="entryPrice" className="flex items-center gap-2">
-                      <DollarSign className="h-3.5 w-3.5" />
-                      Entry Price
-                      <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="entryPrice"
-                      type="number"
-                      step="0.00001"
-                      placeholder="0.00000"
-                      className={cn(
-                        "font-mono",
-                        errors.entryPrice && "border-destructive"
-                      )}
-                      value={entryPrice}
-                      onChange={(e) => {
-                        setEntryPrice(e.target.value);
-                        if (errors.entryPrice) setErrors({ ...errors, entryPrice: "" });
-                      }}
-                    />
-                    {errors.entryPrice && (
-                      <p className="text-xs text-destructive flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        {errors.entryPrice}
-                      </p>
-                    )}
-                  </div>
-
                   {/* Quantity */}
                   <div className="space-y-2">
                     <Label htmlFor="quantity" className="flex items-center gap-2">
@@ -984,6 +914,36 @@ export default function NewEntry() {
                       <p className="text-xs text-destructive flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
                         {errors.quantity}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Entry Price */}
+                  <div className="space-y-2">
+                    <Label htmlFor="entryPrice" className="flex items-center gap-2">
+                      <DollarSign className="h-3.5 w-3.5" />
+                      Entry Price
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="entryPrice"
+                      type="number"
+                      step="0.00001"
+                      placeholder="0.00000"
+                      className={cn(
+                        "font-mono",
+                        errors.entryPrice && "border-destructive"
+                      )}
+                      value={entryPrice}
+                      onChange={(e) => {
+                        setEntryPrice(e.target.value);
+                        if (errors.entryPrice) setErrors({ ...errors, entryPrice: "" });
+                      }}
+                    />
+                    {errors.entryPrice && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.entryPrice}
                       </p>
                     )}
                   </div>
@@ -1143,10 +1103,11 @@ export default function NewEntry() {
                         <SelectValue placeholder="How did the trade close?" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="SL">Stop Loss (SL)</SelectItem>
-                        <SelectItem value="TP">Take Profit (TP)</SelectItem>
-                        <SelectItem value="Breakeven">Breakeven (BE)</SelectItem>
-                        <SelectItem value="Manual Close">Manual Close</SelectItem>
+                        <SelectItem value="Stop Loss">Stop Loss</SelectItem>
+                        <SelectItem value="Take Profit">Take Profit</SelectItem>
+                        <SelectItem value="Breakeven">Breakeven</SelectItem>
+                        <SelectItem value="Manual Close Profit">Manual Close Profit</SelectItem>
+                        <SelectItem value="Manual Close Loss">Manual Close Loss</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
@@ -1155,7 +1116,7 @@ export default function NewEntry() {
                   </div>
 
                   {/* Exit Reason - Only show if Manual Close */}
-                  {exitCondition === "Manual Close" && (
+                  {(exitCondition === "Manual Close Profit" || exitCondition === "Manual Close Loss") && (
                     <div className="space-y-2">
                       <Label htmlFor="exitReason" className="flex items-center gap-2">
                         <FileText className="h-3.5 w-3.5" />
@@ -1217,23 +1178,19 @@ export default function NewEntry() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="notes" className="space-y-4">
+                <Tabs defaultValue="setup-notes" className="space-y-4">
                   <TabsList className="inline-flex w-full h-auto p-1 overflow-x-auto">
-                    <TabsTrigger value="notes" className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 px-2 sm:px-3 py-2 text-xs sm:text-sm">
+                    <TabsTrigger value="setup-notes" className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 px-2 sm:px-3 py-2 text-xs sm:text-sm">
                       <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                      <span className="truncate">Notes</span>
+                      <span className="truncate">Setup Notes</span>
                     </TabsTrigger>
                     <TabsTrigger value="psychology" className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 px-2 sm:px-3 py-2 text-xs sm:text-sm">
                       <Brain className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                       <span className="truncate">Psychology</span>
                     </TabsTrigger>
-                    <TabsTrigger value="setup" className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 px-2 sm:px-3 py-2 text-xs sm:text-sm">
-                      <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                      <span className="truncate">Setup</span>
-                    </TabsTrigger>
                   </TabsList>
                   
-                  <TabsContent value="notes" className="space-y-4 mt-4">
+                  <TabsContent value="setup-notes" className="space-y-4 mt-4">
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="notes" className="block text-sm font-medium mb-2">Trade Notes & Rationale</Label>
@@ -1422,19 +1379,6 @@ export default function NewEntry() {
                           );
                         })}
                       </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="setup" className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="setup" className="block text-sm font-medium mb-2">Technical Setup Description</Label>
-                      <Textarea
-                        id="setup"
-                        placeholder="Describe the technical setup: chart patterns, indicators, entry signals, etc..."
-                        className="min-h-[150px] resize-none"
-                        value={setup}
-                        onChange={(e) => setSetup(e.target.value)}
-                      />
                     </div>
                   </TabsContent>
                 </Tabs>
