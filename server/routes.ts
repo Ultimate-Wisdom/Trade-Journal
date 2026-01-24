@@ -5,6 +5,7 @@ import { setupAuth } from "./auth";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { getLivePrices, calculateCryptoValue } from "./price-service";
+import Groq from "groq-sdk";
 import {
   validateTradeCreation,
   validateSymbol,
@@ -22,6 +23,11 @@ export async function registerRoutes(
   httpServer: Server,
 ): Promise<Server> {
   console.log("🔧 Registering routes...");
+
+  // Initialize Groq client
+  const groq = process.env.GROQ_API_KEY
+    ? new Groq({ apiKey: process.env.GROQ_API_KEY })
+    : null;
 
   // ==========================================
   // 🔒 ENABLE AUTHENTICATION (CRITICAL)
@@ -1611,12 +1617,57 @@ export async function registerRoutes(
     }
   });
 
+  // ==========================================
+  // AI INSIGHT GENERATION
+  // ==========================================
+  app.post("/api/generate-insight", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      const { stats } = req.body;
+
+      if (!stats || typeof stats !== "object") {
+        return res.status(400).json({ 
+          error: "Bad Request", 
+          message: "Stats object is required" 
+        });
+      }
+
+      if (!groq || !process.env.GROQ_API_KEY) {
+        console.error("❌ GROQ_API_KEY is not set in environment variables");
+        return res.status(500).json({ 
+          error: "Server Error", 
+          message: "Server missing API Key" 
+        });
+      }
+
+      // The AI Prompt
+      const prompt = `Analyze this trading week: PnL $${stats.pnl}, Win Rate ${stats.winRate}%. Give me 1 tough-love sentence.`;
+
+      const completion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "llama-3.3-70b-versatile",
+      });
+
+      const insight = completion.choices[0]?.message?.content || "No insight generated.";
+
+      res.json({ insight });
+    } catch (error: any) {
+      console.error("Groq Error:", error);
+      res.status(500).json({ 
+        error: "Server Error", 
+        message: "Failed to generate insight" 
+      });
+    }
+  });
+
   console.log("✅ GET /api/assets route registered");
   console.log("✅ POST /api/assets route registered");
   console.log("✅ PUT /api/assets/:id route registered");
   console.log("✅ DELETE /api/assets/:id route registered");
   console.log("✅ GET /api/settings route registered");
   console.log("✅ POST /api/settings route registered");
+  console.log("✅ POST /api/generate-insight route registered");
   console.log("✅ All routes registered successfully");
   return httpServer;
 }

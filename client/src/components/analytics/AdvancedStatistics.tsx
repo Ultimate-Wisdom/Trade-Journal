@@ -16,15 +16,53 @@ interface AdvancedStatisticsProps {
   trades: any[];
 }
 
+/**
+ * Calculate Risk:Reward Ratio from entry, stop loss, and take profit
+ * Returns the numeric ratio (e.g., 2.0 for 1:2.0) or null if invalid
+ */
+function calculateRRR(
+  entry: number | undefined,
+  sl: number | undefined,
+  tp: number | undefined,
+  direction: "Long" | "Short" | null | undefined
+): number | null {
+  if (!entry || !sl || !tp) return null;
+
+  const entryNum = Number(entry);
+  const slNum = Number(sl);
+  const tpNum = Number(tp);
+
+  if (isNaN(entryNum) || isNaN(slNum) || isNaN(tpNum)) return null;
+
+  // Validate based on direction
+  if (direction === "Long") {
+    if (slNum >= entryNum) return null; // SL must be lower for Long
+    if (tpNum <= entryNum) return null; // TP must be higher for Long
+  } else if (direction === "Short") {
+    if (slNum <= entryNum) return null; // SL must be higher for Short
+    if (tpNum >= entryNum) return null; // TP must be lower for Short
+  }
+
+  const risk = Math.abs(entryNum - slNum);
+  const reward = Math.abs(tpNum - entryNum);
+
+  if (risk === 0) return null;
+
+  const ratio = reward / risk;
+  return ratio;
+}
+
 export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
   const stats = useMemo(() => {
     if (!trades || trades.length === 0) {
       return null;
     }
 
+    // Fix: Use status field to filter closed trades, not PnL
     const closedTrades = trades.filter(t => {
-      const pnl = parseFloat(t.pnl || "0");
-      return pnl !== 0; // Only closed trades with P&L
+      // Check if status exists and is "Closed"
+      const status = t.status || (t as any).status;
+      return status === "Closed";
     });
 
     if (closedTrades.length === 0) {
@@ -99,28 +137,60 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
     const worstTrade = sortedByPnL[sortedByPnL.length - 1];
 
     // 6. Average Risk/Reward
-    const tradesWithRRR = closedTrades.filter(t => t.rrr || t.riskRewardRatio);
-    const avgRRR = tradesWithRRR.length > 0
-      ? tradesWithRRR.reduce((sum, t) => {
-          const rrr = parseFloat(t.rrr || t.riskRewardRatio || "0");
-          return sum + rrr;
-        }, 0) / tradesWithRRR.length
-      : 0;
+    // Calculate RRR from entryPrice, slPrice, tpPrice if rrr field is not available
+    let totalRRR = 0;
+    let rrrCount = 0;
+    
+    closedTrades.forEach(t => {
+      let rrr: number | null = null;
+      
+      // First try to use existing rrr field
+      if (t.rrr || (t as any).rrr) {
+        const parsed = parseFloat(String(t.rrr || (t as any).rrr || "0"));
+        if (!isNaN(parsed) && parsed > 0) {
+          rrr = parsed;
+        }
+      }
+      
+      // If rrr not available, calculate from prices
+      if (rrr === null && t.entryPrice && t.slPrice && t.tpPrice) {
+        const entryPrice = typeof t.entryPrice === 'string' ? parseFloat(t.entryPrice) : Number(t.entryPrice);
+        const slPrice = typeof t.slPrice === 'string' ? parseFloat(t.slPrice) : Number(t.slPrice);
+        const tpPrice = typeof t.tpPrice === 'string' ? parseFloat(t.tpPrice) : Number(t.tpPrice);
+        const direction = (t.direction || (t as any).direction) as "Long" | "Short" | null | undefined;
+        
+        rrr = calculateRRR(entryPrice, slPrice, tpPrice, direction);
+      }
+      
+      if (rrr !== null && rrr > 0) {
+        totalRRR += rrr;
+        rrrCount++;
+      }
+    });
+    
+    const avgRRR = rrrCount > 0 ? totalRRR / rrrCount : 0;
 
     // 7. Win Rate by Day of Week
     const dayStats: Record<string, { wins: number; total: number }> = {};
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     
     closedTrades.forEach(t => {
-      if (t.entryDate || t.createdAt) {
-        const date = new Date(t.entryDate || t.createdAt);
-        const dayName = dayNames[date.getDay()];
-        if (!dayStats[dayName]) {
-          dayStats[dayName] = { wins: 0, total: 0 };
-        }
-        dayStats[dayName].total++;
-        if (parseFloat(t.pnl || "0") > 0) {
-          dayStats[dayName].wins++;
+      // Try multiple date field names for compatibility
+      const dateSource = t.entryDate || (t as any).entryDate || t.createdAt || (t as any).createdAt || t.date || (t as any).date;
+      
+      if (dateSource) {
+        const date = new Date(dateSource);
+        // Validate date is valid
+        if (!isNaN(date.getTime())) {
+          const dayName = dayNames[date.getDay()];
+          if (!dayStats[dayName]) {
+            dayStats[dayName] = { wins: 0, total: 0 };
+          }
+          dayStats[dayName].total++;
+          const pnl = parseFloat(String(t.pnl || (t as any).pnl || "0"));
+          if (pnl > 0) {
+            dayStats[dayName].wins++;
+          }
         }
       }
     });
@@ -279,7 +349,7 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
                   +${parseFloat(stats.bestTrade.pnl || "0").toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {stats.bestTrade.symbol} • {stats.bestTrade.direction}
+                  {stats.bestTrade.symbol || stats.bestTrade.pair || "N/A"} • {stats.bestTrade.direction || "N/A"}
                 </p>
               </>
             ) : (
@@ -298,7 +368,7 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
                   ${parseFloat(stats.worstTrade.pnl || "0").toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {stats.worstTrade.symbol} • {stats.worstTrade.direction}
+                  {stats.worstTrade.symbol || stats.worstTrade.pair || "N/A"} • {stats.worstTrade.direction || "N/A"}
                 </p>
               </>
             ) : (

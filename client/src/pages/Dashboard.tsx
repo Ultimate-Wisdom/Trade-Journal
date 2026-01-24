@@ -2,15 +2,14 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { EquityChart } from "@/components/dashboard/EquityChart";
 import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
-import { PNLCalendar } from "@/components/dashboard/PNLCalendar";
 import { MostProfitableDay } from "@/components/dashboard/MostProfitableDay";
+import { WeeklyInsight } from "@/components/dashboard/WeeklyInsight";
 import { TradeTable } from "@/components/journal/TradeTable";
 import { AccountTree } from "@/components/AccountTree";
 import { SessionAnalysis } from "@/components/analytics/SessionAnalysis";
 import { AdvancedStatistics } from "@/components/analytics/AdvancedStatistics";
 import { PerformanceBenchmark } from "@/components/analytics/PerformanceBenchmark";
 import { CorrelationAnalysis } from "@/components/analytics/CorrelationAnalysis";
-import { MultitimeframeAnalysis } from "@/components/analytics/MultitimeframeAnalysis";
 import {
   Activity,
   DollarSign,
@@ -20,7 +19,6 @@ import {
   Loader2,
   Plus,
 } from "lucide-react";
-import generatedImage from "@assets/generated_images/abstract_financial_data_visualization_dark_mode.png";
 
 import { useQuery } from "@tanstack/react-query";
 import { AddAccountDialog } from "@/components/add-account-dialog";
@@ -409,41 +407,21 @@ export default function Dashboard() {
               </div>
               <EquityChart selectedAccountId={selectedAccountId} />
             </div>
-            <div className="col-span-2 md:col-span-3 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative min-h-[140px] md:min-h-[160px]">
-              <img
-                src={generatedImage}
-                alt="Abstract visualization"
-                className="absolute inset-0 h-full w-full object-cover opacity-20 mix-blend-overlay"
-              />
-              <div className="relative z-10 p-3 md:p-6 flex flex-col justify-end h-full">
-                <h3 className="text-sm md:text-lg font-bold">
-                  Weekly Insight
-                </h3>
-                <p className="text-[0.7rem] md:text-sm text-muted-foreground mt-1 max-w-prose">
-                  {journalTrades.length > 0 
-                    ? "Keep logging trades to generate AI insights." 
-                    : "Welcome to OPES Forge. Log your first trade to unlock insights."}
-                </p>
-              </div>
-            </div>
+            <WeeklyInsight trades={journalTrades} />
           </div>
 
           <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-3 md:mt-8">
             <StrategyInsights trades={journalTrades} />
-            <AdvancedStatistics trades={filteredTrades || []} />
-            <CorrelationAnalysis trades={filteredTrades || []} />
+            <AdvancedStatistics trades={journalTrades} />
+            <div className="space-y-3 md:space-y-4">
+              <CorrelationAnalysis trades={filteredTrades || []} />
+              <MostProfitableDay trades={journalTrades} />
+            </div>
           </div>
 
           <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-3 md:mt-8">
-            <div className="lg:col-span-2 space-y-3 md:space-y-4">
-              <PNLCalendar trades={journalTrades} />
-              <MultitimeframeAnalysis trades={filteredTrades || []} />
-            </div>
-            <div className="space-y-3 md:space-y-4">
-              <MostProfitableDay trades={journalTrades} />
-              <PerformanceBenchmark trades={journalTrades} />
-              <SessionAnalysis trades={filteredTrades || []} />
-            </div>
+            <PerformanceBenchmark trades={journalTrades} />
+            <SessionAnalysis trades={filteredTrades || []} />
           </div>
 
           <div className="space-y-3 md:space-y-4 mt-3 md:mt-8">
