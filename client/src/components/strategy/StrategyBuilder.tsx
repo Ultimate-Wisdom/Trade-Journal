@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -41,8 +43,29 @@ interface Strategy {
 
 export function StrategyBuilder() {
   const { toast } = useToast();
-  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const queryClient = useQueryClient();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  
+  // Fetch strategies from database (experimental strategies)
+  const { data: dbStrategies = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/strategies", "experimental"],
+    queryFn: async () => {
+      const res = await fetch("/api/strategies?status=experimental", {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+  
+  // Convert DB strategies to local format (for display)
+  const strategies: Strategy[] = dbStrategies.map((s) => ({
+    name: s.name,
+    description: "", // Strategies table doesn't have description yet
+    rules: [], // Rules would need to be stored separately
+    targetRR: "",
+    maxRisk: "",
+  }));
   
   // Form state
   const [strategyName, setStrategyName] = useState("");
@@ -96,6 +119,44 @@ export function StrategyBuilder() {
     setMaxRisk("");
   };
 
+  // Create strategy mutation (saves to database as experimental)
+  const createMutation = useMutation({
+    mutationFn: async (strategy: { name: string; description: string; rules: StrategyRule[]; targetRR: string; maxRisk: string }) => {
+      const res = await fetch("/api/strategies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: strategy.name,
+          status: "experimental",
+          // Note: We'll store rules/description in a separate table or JSON field in future
+          // For now, just save the name
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Failed to create strategy");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
+      toast({
+        title: "Strategy Saved",
+        description: `${strategyName} has been saved successfully`,
+      });
+      resetForm();
+      setShowCreateDialog(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save strategy",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSave = () => {
     if (!strategyName.trim()) {
       toast({
@@ -106,39 +167,49 @@ export function StrategyBuilder() {
       return;
     }
 
-    if (rules.length === 0) {
-      toast({
-        title: "Error",
-        description: "Add at least one rule",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Note: Rules validation removed since we're only saving name for now
+    // In future, we can add a strategies_metadata table to store full strategy data
 
-    const newStrategy: Strategy = {
+    createMutation.mutate({
       name: strategyName,
       description,
       rules,
       targetRR,
       maxRisk,
-    };
-
-    setStrategies([...strategies, newStrategy]);
-    toast({
-      title: "Strategy Saved",
-      description: `${strategyName} has been saved successfully`,
     });
-    
-    resetForm();
-    setShowCreateDialog(false);
   };
 
+  // Delete strategy mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (strategyId: string) => {
+      const res = await fetch(`/api/strategies/${strategyId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete strategy");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/strategies"] });
+      toast({
+        title: "Strategy Deleted",
+        description: "Strategy has been removed",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete strategy",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteStrategy = (name: string) => {
-    setStrategies(strategies.filter(s => s.name !== name));
-    toast({
-      title: "Strategy Deleted",
-      description: `${name} has been removed`,
-    });
+    const strategy = dbStrategies.find(s => s.name === name);
+    if (strategy) {
+      deleteMutation.mutate(strategy.id);
+    }
   };
 
   return (
@@ -295,9 +366,22 @@ export function StrategyBuilder() {
                 <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleSave} className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Save Strategy
+                <Button 
+                  onClick={handleSave} 
+                  disabled={createMutation.isPending}
+                  className="gap-2"
+                >
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save Strategy
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -306,7 +390,11 @@ export function StrategyBuilder() {
       </CardHeader>
       
       <CardContent>
-        {strategies.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : strategies.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
             No strategies yet. Build your first custom strategy to track rule-based trading!
           </div>

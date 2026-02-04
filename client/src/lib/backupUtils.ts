@@ -176,25 +176,29 @@ export async function restoreBackup(
     if (options.includeAccounts) {
       for (const account of backup.data.accounts) {
         try {
+          // Map old backup format to current schema
+          const accountPayload: any = {
+            name: account.name,
+            type: account.type || account.broker || "LIVE", // Fallback for old backups
+            initialBalance: account.initialBalance || account.balance || "10000",
+            color: account.color || "#2563eb",
+          };
+          
           const res = await fetch("/api/accounts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({
-              name: account.name,
-              balance: account.balance,
-              currency: account.currency,
-              broker: account.broker,
-            }),
+            body: JSON.stringify(accountPayload),
           });
           
           if (res.ok) {
             imported.accounts++;
           } else {
-            errors.push(`Failed to import account: ${account.name}`);
+            const errorText = await res.text();
+            errors.push(`Failed to import account: ${account.name} - ${errorText}`);
           }
-        } catch (error) {
-          errors.push(`Error importing account ${account.name}: ${error}`);
+        } catch (error: any) {
+          errors.push(`Error importing account ${account.name}: ${error.message || error}`);
         }
       }
     }

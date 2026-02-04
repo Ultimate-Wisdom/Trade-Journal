@@ -258,7 +258,7 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
         <div className="grid grid-cols-2 gap-2 md:gap-3">
           <div className="p-2 md:p-3 rounded-lg bg-muted/30">
             <p className="text-[0.65rem] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Expectancy</p>
-            <p className={`text-sm md:text-lg font-bold ${stats.expectancy >= 0 ? "text-green-500" : "text-red-500"}`}>
+            <p className={`text-sm md:text-lg font-bold ${stats.expectancy >= 0 ? "text-success-green" : "text-red-500"}`}>
               {stats.expectancy >= 0 ? "+" : ""}${stats.expectancy.toFixed(2)}
             </p>
             <p className="text-[0.6rem] md:text-xs text-muted-foreground">Per Trade</p>
@@ -266,7 +266,7 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
 
           <div className="p-2 md:p-3 rounded-lg bg-muted/30">
             <p className="text-[0.65rem] md:text-xs text-muted-foreground mb-0.5 md:mb-1">Profit Factor</p>
-            <p className={`text-sm md:text-lg font-bold ${stats.profitFactor >= 1.5 ? "text-green-500" : stats.profitFactor >= 1 ? "text-yellow-500" : "text-red-500"}`}>
+            <p className={`text-sm md:text-lg font-bold ${stats.profitFactor >= 1.5 ? "text-success-green" : stats.profitFactor >= 1 ? "text-yellow-500" : "text-red-500"}`}>
               {stats.profitFactor.toFixed(2)}
             </p>
             <p className="text-[0.6rem] md:text-xs text-muted-foreground">
@@ -293,12 +293,12 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
 
         {/* Win/Loss Comparison */}
         <div className="grid grid-cols-2 gap-2 md:gap-3">
-          <div className="p-2 md:p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+          <div className="p-2 md:p-3 rounded-lg bg-success-green/10 border border-success-green/20">
             <div className="flex items-center gap-1 md:gap-2 mb-0.5 md:mb-1">
-              <TrendingUp className="h-3 w-3 md:h-3.5 md:w-3.5 text-green-500" />
-              <p className="text-[0.65rem] md:text-xs font-medium text-green-500">Avg Win</p>
+              <TrendingUp className="h-3 w-3 md:h-3.5 md:w-3.5 text-success-green" />
+              <p className="text-[0.65rem] md:text-xs font-medium text-success-green">Avg Win</p>
             </div>
-            <p className="text-sm md:text-lg font-bold text-green-500">
+            <p className="text-sm md:text-lg font-bold text-success-green">
               +${stats.avgWin.toFixed(2)}
             </p>
           </div>
@@ -323,7 +323,7 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
           <div className="flex justify-between text-sm">
             <div>
               <span className="text-muted-foreground">Wins: </span>
-              <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+              <Badge variant="outline" className="bg-success-green/10 text-success-green border-success-green/20">
                 {stats.maxWinStreak}
               </Badge>
             </div>
@@ -345,7 +345,7 @@ export function AdvancedStatistics({ trades }: AdvancedStatisticsProps) {
             </div>
             {parseFloat(stats.bestTrade.pnl || "0") > 0 ? (
               <>
-                <p className="text-sm font-mono font-bold text-green-500">
+                <p className="text-sm font-mono font-bold text-success-green">
                   +${parseFloat(stats.bestTrade.pnl || "0").toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground">

@@ -233,7 +233,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
                         corr.correlation > 0.7
                           ? "bg-red-500/20 text-red-500 border-red-500/30"
                           : corr.correlation < 0.3 && corr.correlation > -0.3
-                          ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/30"
+                          ? "bg-success-green/20 text-success-green border-success-green/30"
                           : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
                       }
                     >
@@ -277,7 +277,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`font-bold ${stat.winRate >= 50 ? "text-green-500" : "text-red-500"}`}>
+                    <p className={`font-bold ${stat.winRate >= 50 ? "text-success-green" : "text-red-500"}`}>
                       {stat.winRate.toFixed(1)}%
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -301,7 +301,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
                   className="p-3 rounded-lg bg-muted/30 text-center"
                 >
                   <p className="text-sm font-medium">{stat.session}</p>
-                  <p className={`text-lg font-bold mt-1 ${stat.winRate >= 50 ? "text-green-500" : "text-red-500"}`}>
+                  <p className={`text-lg font-bold mt-1 ${stat.winRate >= 50 ? "text-success-green" : "text-red-500"}`}>
                     {stat.winRate.toFixed(1)}%
                   </p>
                   <p className="text-xs text-muted-foreground">

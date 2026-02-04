@@ -18,7 +18,7 @@ export function StatsCard({ title, value, change, trend, icon: Icon, pnlValue, c
     ? className 
     : pnlValue !== undefined
     ? pnlValue > 0
-      ? "text-emerald-500"
+      ? "text-success-green"
       : pnlValue < 0
       ? "text-rose-500"
       : "text-white"

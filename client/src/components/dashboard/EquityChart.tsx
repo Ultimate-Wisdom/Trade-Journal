@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { Account, Trade as DBTrade } from "@shared/schema";
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 
 interface EquityChartProps {
   selectedAccountId?: string | null;
@@ -111,7 +111,7 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
   };
 
   // Calculate pure trading performance curve
-  const data = useMemo(() => {
+  const rawData = useMemo(() => {
     if (!allTrades || !accounts) return [];
 
     // Filter trades by selected account if specified
@@ -134,6 +134,23 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
     return generatePerformanceCurve(relevantTrades, initialBalance);
   }, [allTrades, accounts, selectedAccountId]);
 
+  // Enrich data with daily PnL calculations
+  const data = useMemo(() => {
+    if (!rawData || rawData.length === 0) return [];
+
+    return rawData.map((point, index) => {
+      // Calculate daily PnL relative to previous point
+      const dailyPnL = index === 0 
+        ? 0 
+        : point.equity - rawData[index - 1].equity;
+
+      return {
+        ...point,
+        dailyPnL: Math.round(dailyPnL * 100) / 100, // Round to 2 decimals
+      };
+    });
+  }, [rawData]);
+
   // Format currency with K/M suffixes
   const formatCurrency = (value: number): string => {
     if (value >= 1000000) {
@@ -144,12 +161,12 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
     return `$${value.toFixed(0)}`;
   };
 
-  // Custom tooltip component
+  // Custom tooltip component - dark, minimal, premium with Daily PnL
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       const equity = data.equity;
-      const dailyChange = data.dailyChange || 0;
+      const dailyPnL = data.dailyPnL || 0;
       const dateFull = data.dateFull || new Date();
       
       // Format date as "Mon, Jan 20"
@@ -159,24 +176,55 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
         day: "numeric" 
       });
 
+      // Format daily PnL with sign
+      const formatDailyPnL = (value: number): string => {
+        const sign = value >= 0 ? "+" : "";
+        return `${sign}${formatCurrency(value)}`;
+      };
+
       return (
-        <div className="bg-slate-900/95 border border-slate-700 rounded-lg shadow-xl backdrop-blur-md p-3 min-w-[160px]">
-          <p className="text-xs text-slate-400 mb-2 font-medium">{formattedDate}</p>
-          <div className="mb-1">
-            <p className="text-xs text-slate-500 mb-0.5">Pure Equity</p>
-            <p className="text-xl font-bold text-white">
-              {formatCurrency(equity)}
-            </p>
-          </div>
-          {dailyChange !== 0 && (
-            <p className={`text-sm font-medium ${dailyChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {dailyChange >= 0 ? "+" : ""}{formatCurrency(dailyChange)}
-            </p>
-          )}
+        <div className="bg-black/90 border border-slate-800/50 rounded-md shadow-2xl backdrop-blur-sm p-2.5 min-w-[140px]">
+          {/* Date Row */}
+          <p className="text-[10px] text-slate-500 mb-1.5 font-mono">{formattedDate}</p>
+          
+          {/* Equity Row */}
+          <p className="text-lg font-bold text-white font-mono tracking-tight mb-1.5">
+            {formatCurrency(equity)}
+          </p>
+          
+          {/* Separator Line */}
+          <div className="border-t border-slate-700/50 my-1.5"></div>
+          
+          {/* Daily Change Row */}
+          <p className={`text-sm font-medium font-mono ${
+            dailyPnL >= 0 ? "text-emerald-400" : "text-rose-400"
+          }`}>
+            {formatDailyPnL(dailyPnL)}
+          </p>
         </div>
       );
     }
     return null;
+  };
+
+  // Use ref to track previous tick value across renders
+  const previousTickRef = useRef<string | null>(null);
+  
+  // Reset ref when data changes
+  useEffect(() => {
+    previousTickRef.current = null;
+  }, [data]);
+  
+  // Custom tick formatter to hide duplicate dates
+  const formatXAxisTick = (tickItem: string) => {
+    // If this is the same as the previous tick, return empty string
+    if (tickItem === previousTickRef.current) {
+      return "";
+    }
+    
+    // Update previous tick and return the formatted value
+    previousTickRef.current = tickItem;
+    return tickItem;
   };
 
   return (
@@ -184,16 +232,26 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
           <defs>
+            {/* Premium gradient fill */}
             <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+              <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#3B82F6" stopOpacity={0} />
             </linearGradient>
+            {/* Glow effect filter for neon light appearance */}
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
           </defs>
+          {/* Subtle dashed grid lines */}
           <CartesianGrid 
             strokeDasharray="3 3" 
-            stroke="#333" 
+            stroke="#666" 
             vertical={false}
-            opacity={0.3}
+            opacity={0.1}
           />
           <XAxis 
             dataKey="date" 
@@ -203,6 +261,8 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
             axisLine={false}
             tickCount={5}
             tickMargin={8}
+            interval="preserveStartEnd"
+            tickFormatter={formatXAxisTick}
           />
           <YAxis 
             stroke="#666" 
@@ -217,10 +277,11 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
           <Area
             type="monotone"
             dataKey="equity"
-            stroke="#3b82f6"
-            strokeWidth={2}
+            stroke="#3B82F6"
+            strokeWidth={3}
             fillOpacity={1}
             fill="url(#colorEquity)"
+            filter="url(#glow)"
           />
         </AreaChart>
       </ResponsiveContainer>

@@ -61,7 +61,7 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
                   {/* Row 2: Win Rate Percentage */}
                   <p
                     className={`text-sm font-medium mt-1 ${
-                      strategy.winrate >= 50 ? "text-emerald-500" : "text-rose-500"
+                      strategy.winrate >= 50 ? "text-success-green" : "text-rose-500"
                     }`}
                   >
                     {strategy.winrate.toFixed(1)}%
@@ -163,7 +163,7 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
                       variant="outline"
                       className={`px-1.5 py-0.5 text-[10px] ${
                         combo.winrate >= 60 
-                          ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500" 
+                          ? "border-success-green/50 bg-success-green/10 text-success-green" 
                           : combo.winrate >= 50 
                           ? "border-primary/50 bg-primary/10 text-primary" 
                           : "border-rose-500/50 bg-rose-500/10 text-rose-500"

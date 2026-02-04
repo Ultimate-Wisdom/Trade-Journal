@@ -42,7 +42,7 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
     // Define trading sessions (in 24-hour format)
     const sessions = [
       { name: "Asian", start: 0, end: 8, color: "bg-blue-500" },
-      { name: "London", start: 8, end: 16, color: "bg-green-500" },
+      { name: "London", start: 8, end: 16, color: "bg-success-green" },
       { name: "New York", start: 14, end: 22, color: "bg-purple-500" },
       { name: "Late NY", start: 22, end: 24, color: "bg-orange-500" },
     ];
@@ -60,7 +60,7 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
 
     const getSessionColor = (session: string) => {
       if (session.includes("Asian")) return "bg-blue-500";
-      if (session.includes("London")) return "bg-green-500";
+      if (session.includes("London")) return "bg-success-green";
       if (session.includes("New York") || session.includes("NY")) return "bg-purple-500";
       return "bg-orange-500";
     };
@@ -154,14 +154,14 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
       <CardContent className="space-y-4">
         {/* Best & Worst Sessions */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+          <div className="p-3 rounded-lg bg-success-green/10 border border-success-green/20">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-3.5 w-3.5 text-green-500" />
-              <p className="text-xs font-medium text-green-500">Best Session</p>
+              <TrendingUp className="h-3.5 w-3.5 text-success-green" />
+              <p className="text-xs font-medium text-success-green">Best Session</p>
             </div>
             <p className="text-sm font-bold">{bestSession.session}</p>
             <p className="text-xs text-muted-foreground">{bestSession.timeRange}</p>
-            <p className="text-lg font-bold text-green-500 mt-1">
+            <p className="text-lg font-bold text-success-green mt-1">
               {bestSession.winRate.toFixed(1)}%
             </p>
           </div>
@@ -192,7 +192,7 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium">{stat.session}</p>
                     {idx === 0 && (
-                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/20">
+                      <Badge variant="outline" className="text-xs bg-success-green/10 text-success-green border-success-green/20">
                         Best
                       </Badge>
                     )}
@@ -202,13 +202,13 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
               </div>
 
               <div className="text-right space-y-0.5">
-                <p className={`text-lg font-bold ${stat.winRate >= 50 ? "text-green-500" : "text-red-500"}`}>
+                <p className={`text-lg font-bold ${stat.winRate >= 50 ? "text-success-green" : "text-red-500"}`}>
                   {stat.winRate.toFixed(1)}%
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {stat.wins}W / {stat.losses}L ({stat.totalTrades} total)
                 </p>
-                <p className={`text-xs font-mono ${stat.avgPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+                <p className={`text-xs font-mono ${stat.avgPnL >= 0 ? "text-success-green" : "text-red-500"}`}>
                   Avg: {stat.avgPnL >= 0 ? "+" : ""}${stat.avgPnL.toFixed(2)}
                 </p>
               </div>

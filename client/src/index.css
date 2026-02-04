@@ -11,6 +11,9 @@
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
   
+  /* Unified Success Green - matches AdvancedStatistics text-green-500 (#22c55e) */
+  --color-success-green: #22c55e;
+  
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   

@@ -24,7 +24,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   console.log("🔧 Registering routes...");
 
-  // Initialize Groq client
+  // Initialize Groq client (Llama 3)
   const groq = process.env.GROQ_API_KEY
     ? new Groq({ apiKey: process.env.GROQ_API_KEY })
     : null;
@@ -1136,26 +1136,113 @@ export async function registerRoutes(
   // ==========================================
   
   // Get all unique strategy names from trades (including all trades for migration purposes)
+  // Get strategies (with optional status filter)
+  app.get("/api/strategies", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const userId = req.user!.id;
+      const status = req.query.status as "active" | "archived" | "experimental" | undefined;
+      
+      const strategies = await storage.getStrategies(userId, status);
+      res.json(strategies);
+    } catch (error: any) {
+      console.error("❌ GET /api/strategies failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch strategies" });
+    }
+  });
+
+  // Create strategy
+  app.post("/api/strategies", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const userId = req.user!.id;
+      const { name, status } = req.body;
+
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ message: "Strategy name is required" });
+      }
+
+      const strategy = await storage.createStrategy({
+        userId,
+        name: name.trim(),
+        status: status || "active",
+      });
+
+      res.json(strategy);
+    } catch (error: any) {
+      console.error("❌ POST /api/strategies failed:", error);
+      res.status(500).json({ message: error.message || "Failed to create strategy" });
+    }
+  });
+
+  // Update strategy
+  app.patch("/api/strategies/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const updates = req.body;
+
+      const updated = await storage.updateStrategy(id, userId, updates);
+      if (!updated) {
+        return res.status(404).json({ message: "Strategy not found" });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("❌ PATCH /api/strategies/:id failed:", error);
+      res.status(500).json({ message: error.message || "Failed to update strategy" });
+    }
+  });
+
+  // Delete strategy
+  app.delete("/api/strategies/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!storage) throw new Error("Storage engine is undefined");
+
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const deleted = await storage.deleteStrategy(id, userId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Strategy not found" });
+      }
+
+      res.json({ message: "Strategy deleted successfully" });
+    } catch (error: any) {
+      console.error("❌ DELETE /api/strategies/:id failed:", error);
+      res.status(500).json({ message: error.message || "Failed to delete strategy" });
+    }
+  });
+
+  // Legacy endpoint for backward compatibility (returns active strategies only)
   app.get("/api/trades/strategies", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       if (!storage) throw new Error("Storage engine is undefined");
 
       const userId = req.user!.id;
-      // Include ALL trades (including adjustments) to find all strategy names
-      // This ensures we can find "orphaned" strategy names that exist in trades but not in Playbook
-      const allTrades = await storage.getTrades(userId, true); // Include adjustments
+      // Get active strategies from strategies table
+      const strategies = await storage.getStrategies(userId, "active");
+      const strategyNames = strategies.map(s => s.name).sort();
       
-      // Get unique strategy names (excluding null/empty)
-      const strategySet = new Set<string>();
+      // Also include strategies from trades (for backward compatibility)
+      const allTrades = await storage.getTrades(userId, true);
+      const strategySet = new Set<string>(strategyNames);
       allTrades.forEach(trade => {
         if (trade.strategy && trade.strategy.trim()) {
           strategySet.add(trade.strategy.trim());
         }
       });
       
-      const strategies = Array.from(strategySet).sort();
-      res.json(strategies);
+      res.json(Array.from(strategySet).sort());
     } catch (error: any) {
       console.error("❌ GET /api/trades/strategies failed:", error);
       res.status(500).json({ message: error.message || "Failed to fetch strategies" });
@@ -1620,16 +1707,36 @@ export async function registerRoutes(
   // ==========================================
   // AI INSIGHT GENERATION
   // ==========================================
+  // Helper route to list available models (for debugging)
+  app.get("/api/list-models", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!groq || !process.env.GROQ_API_KEY) {
+        return res.status(500).json({ error: "GROQ_API_KEY not set" });
+      }
+      // Note: Groq models are fixed - using llama-3.3-70b-versatile
+      res.json({ 
+        message: "Using Groq with llama-3.3-70b-versatile model",
+        model: "llama-3.3-70b-versatile"
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/generate-insight", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
 
-      const { stats } = req.body;
+      const { stats, intelligence, tradeLog } = req.body;
 
-      if (!stats || typeof stats !== "object") {
+      // Support both old format (stats) and new format (intelligence + tradeLog)
+      const data = intelligence || { weeklyStats: stats };
+      
+      if (!data || typeof data !== "object") {
         return res.status(400).json({ 
           error: "Bad Request", 
-          message: "Stats object is required" 
+          message: "Stats or intelligence object is required" 
         });
       }
 
@@ -1641,22 +1748,167 @@ export async function registerRoutes(
         });
       }
 
-      // The AI Prompt
-      const prompt = `Analyze this trading week: PnL $${stats.pnl}, Win Rate ${stats.winRate}%. Give me 1 tough-love sentence.`;
+      // 2. Construct System Prompt (Quantitative Risk Officer persona)
+      const systemPrompt = `You are a Quantitative Risk Officer at a proprietary trading firm. Your role is to conduct comprehensive risk audits and identify systemic inefficiencies.
 
+MISSION: Analyze the trader's Golden Reversion strategy performance.
+
+CRITICAL REQUIREMENTS:
+1. You MUST return a valid JSON object with exactly 3 fields: status, analysis, directive
+2. status must be one of: "OPTIMAL", "CAUTION", or "CRITICAL"
+3. analysis must be a detailed deep dive (3-5 sentences) examining:
+   - Session Correlation: London vs NY performance differences
+   - R:R Efficiency: Whether the Golden Reversion strategy is achieving target risk:reward ratios
+   - Expectancy: Profit Factor and overall edge quality
+   - Execution Quality: Any behavioral leaks or pattern inefficiencies
+4. directive must be a direct, imperative order (1 sentence) to fix identified leaks (e.g., "Halt London operations until session bias is resolved.")
+
+LOGIC CHECKS YOU MUST PERFORM:
+- Session Inefficiency: If London win rate < 40% AND NY win rate > 60%, flag "Session Inefficiency"
+- Robust Edge: If Profit Factor > 2.0, acknowledge "Robust Edge"
+- Execution Drag: If Avg R:R < 2.0, flag "Execution Drag" (cutting winners too early)
+
+OUTPUT FORMAT (JSON only, no markdown, no code blocks):
+{
+  "status": "OPTIMAL" | "CAUTION" | "CRITICAL",
+  "analysis": "Detailed text analyzing Session Correlation (London vs NY) and R:R efficiency.",
+  "directive": "A direct, imperative order to fix the leak (e.g., 'Halt London operations')."
+}`;
+
+      // 3. Construct User Message with Full Dashboard Statistics
+      let userContent: string;
+      
+      const weeklyStats = intelligence?.weeklyStats || stats;
+      const sessionStats = intelligence?.sessionStats;
+      const profitFactor = intelligence?.profitFactor ?? 0;
+      const avgRR = intelligence?.avgRR ?? 0;
+      
+      // Format session stats
+      const londonWinRate = sessionStats?.london?.winRate ?? 0;
+      const nyWinRate = sessionStats?.ny?.winRate ?? 0;
+      const londonTrades = sessionStats?.london?.totalTrades ?? 0;
+      const nyTrades = sessionStats?.ny?.totalTrades ?? 0;
+      
+      // Format Black Box trade log if available
+      let blackBoxText = "";
+      if (tradeLog && Array.isArray(tradeLog) && tradeLog.length > 0) {
+        blackBoxText = tradeLog.map((t: any, i: number) => 
+          `${i + 1}. ${t.pair} | ${t.dir} | ${t.res} | $${t.pnl} | ${t.strat} | ${t.day} ${t.hour}:00 | ${t.tag}${t.note ? ` | ${t.note}` : ''}`
+        ).join('\n');
+      }
+      
+      userContent = `DASHBOARD STATISTICS AUDIT:
+
+WEEKLY PERFORMANCE:
+- Net PnL: $${weeklyStats.pnl}
+- Win Rate: ${weeklyStats.winRate}%
+- Trade Count: ${weeklyStats.tradeCount}
+- Best Strategy: ${weeklyStats.bestStrategy}
+
+SESSION PERFORMANCE:
+- London Session: ${londonWinRate.toFixed(1)}% win rate (${londonTrades} trades)
+- New York Session: ${nyWinRate.toFixed(1)}% win rate (${nyTrades} trades)
+- Session Bias Check: ${londonWinRate < 40 && nyWinRate > 60 ? "FLAG: Session Inefficiency detected" : "No significant bias"}
+
+RISK METRICS:
+- Profit Factor: ${profitFactor.toFixed(2)} ${profitFactor > 2.0 ? "(Robust Edge)" : profitFactor < 1.0 ? "(Negative Expectancy)" : ""}
+- Average R:R: ${avgRR.toFixed(2)} ${avgRR < 2.0 ? "(Execution Drag - cutting winners)" : avgRR >= 2.0 ? "(Good R:R discipline)" : ""}
+
+${blackBoxText ? `THE BLACK BOX (Last 15 Closed Trades):
+Format: Pair | Direction | Result | PnL | Strategy | Day Hour | Tag | Note
+${blackBoxText}` : ""}
+
+PSYCHOLOGY METRICS:
+- Trades with Mistakes: ${intelligence?.psychologyStats?.tradesWithMistakes ?? 0} out of ${intelligence?.recentHistory?.length ?? 0}
+- Clean Trades: ${intelligence?.psychologyStats?.cleanTrades ?? 0}
+- Mistake Rate: ${intelligence?.psychologyStats?.mistakeRate ?? 0}%
+
+ANALYSIS REQUIREMENTS:
+1. Examine Session Bias: Is there a correlation between session timing and performance?
+2. Evaluate Expectancy: Does Profit Factor indicate a robust edge or negative expectancy?
+3. Assess Execution Quality: Is Avg R:R showing discipline or execution drag?
+4. Identify Patterns: Look for correlations in the Black Box trade log
+5. Flag Critical Issues: Session inefficiency, negative expectancy, or execution drag
+
+OUTPUT: Return ONLY a valid JSON object with status, analysis, and directive fields.`;
+
+      // 4. Generate insight using Groq (Llama 3.3 70B)
       const completion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent }
+        ],
         model: "llama-3.3-70b-versatile",
+        temperature: 0.7,
       });
+      
+      let rawResponse = completion.choices[0]?.message?.content || "";
+      console.log(`✅ Successfully used model: llama-3.3-70b-versatile`);
+      console.log(`📊 Raw AI Response:`, rawResponse);
+      
+      // Parse JSON response
+      let insight: any;
+      try {
+        // Try to parse as JSON
+        insight = JSON.parse(rawResponse);
+        
+        // Validate structure
+        if (!insight.status || !insight.analysis || !insight.directive) {
+          throw new Error("Invalid JSON structure");
+        }
+        
+        // Ensure status is one of the valid values
+        if (!["OPTIMAL", "CAUTION", "CRITICAL"].includes(insight.status)) {
+          insight.status = "CAUTION";
+        }
+      } catch (parseError) {
+        console.warn("⚠️ Failed to parse JSON, attempting to extract from text:", parseError);
+        // Fallback: try to extract JSON from markdown or text
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            insight = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            // Final fallback
+            insight = {
+              status: "CAUTION",
+              analysis: rawResponse || "Analysis completed but format invalid.",
+              directive: "Review system output format.",
+            };
+          }
+        } else {
+          // No JSON found, create fallback response
+          insight = {
+            status: "CAUTION",
+            analysis: rawResponse || "Analysis completed but format invalid.",
+            directive: "Review system output format.",
+          };
+        }
+      }
 
-      const insight = completion.choices[0]?.message?.content || "No insight generated.";
-
+      // 5. Send Response
       res.json({ insight });
     } catch (error: any) {
       console.error("Groq Error:", error);
+      console.error("Error Details:", {
+        status: error.status,
+        statusText: error.statusText,
+        message: error.message,
+        errorDetails: error.errorDetails
+      });
+      
+      // Provide more helpful error message
+      let errorMessage = "Failed to generate insight";
+      if (error.message?.includes("API key") || error.message?.includes("authentication")) {
+        errorMessage = "Invalid or missing GROQ_API_KEY";
+      } else if (error.status === 429) {
+        errorMessage = "Rate limit exceeded. Please try again in a moment.";
+      }
+      
       res.status(500).json({ 
         error: "Server Error", 
-        message: "Failed to generate insight" 
+        message: errorMessage,
+        details: process.env.NODE_ENV === "development" ? error.message : undefined
       });
     }
   });

@@ -1,4 +1,4 @@
-import { users, trades, accounts, backtests, tags, tradeTags, tradeTemplates, userSettings, portfolioAssets } from "@shared/schema";
+import { users, trades, accounts, backtests, tags, tradeTags, tradeTemplates, userSettings, portfolioAssets, strategies } from "@shared/schema";
 import {
   type User,
   type InsertUser,
@@ -17,6 +17,8 @@ import {
   type InsertUserSettings,
   type PortfolioAsset,
   type InsertPortfolioAsset,
+  type Strategy,
+  type InsertStrategy,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -88,6 +90,12 @@ export interface IStorage {
   createPortfolioAsset(asset: InsertPortfolioAsset): Promise<PortfolioAsset>;
   updatePortfolioAsset(id: string, userId: string, updates: Partial<InsertPortfolioAsset>): Promise<PortfolioAsset | undefined>;
   deletePortfolioAsset(id: string, userId: string): Promise<boolean>;
+
+  // Strategy Methods
+  getStrategies(userId: string, status?: "active" | "archived" | "experimental"): Promise<Strategy[]>;
+  createStrategy(strategy: InsertStrategy): Promise<Strategy>;
+  updateStrategy(id: string, userId: string, updates: Partial<InsertStrategy>): Promise<Strategy | undefined>;
+  deleteStrategy(id: string, userId: string): Promise<boolean>;
 
   // Session Store
   sessionStore: session.Store;
@@ -439,6 +447,55 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(portfolioAssets)
       .where(and(eq(portfolioAssets.id, id), eq(portfolioAssets.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // --- STRATEGY METHODS ---
+  async getStrategies(userId: string, status?: "active" | "archived" | "experimental"): Promise<Strategy[]> {
+    let query = db
+      .select()
+      .from(strategies)
+      .where(eq(strategies.userId, userId));
+    
+    if (status) {
+      query = query.where(and(eq(strategies.userId, userId), eq(strategies.status, status))) as any;
+    }
+    
+    return await query.orderBy(desc(strategies.createdAt));
+  }
+
+  async createStrategy(strategy: InsertStrategy): Promise<Strategy> {
+    const [created] = await db
+      .insert(strategies)
+      .values({
+        ...strategy,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return created;
+  }
+
+  async updateStrategy(
+    id: string,
+    userId: string,
+    updates: Partial<InsertStrategy>,
+  ): Promise<Strategy | undefined> {
+    const [updated] = await db
+      .update(strategies)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(strategies.id, id), eq(strategies.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteStrategy(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(strategies)
+      .where(and(eq(strategies.id, id), eq(strategies.userId, userId)))
       .returning();
     return result.length > 0;
   }

@@ -48,7 +48,7 @@ import {
 import { Link, useRoute, useLocation } from "wouter";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Account, Trade as DBTrade, TradeTemplate } from "@shared/schema";
+import { Account, Trade as DBTrade, TradeTemplate, Strategy } from "@shared/schema";
 import { calculateRRR, calculateSLPercent, calculateTPPercent } from "@/lib/mockData";
 import { safeParseFloat, validateNumericInput } from "@/lib/validationUtils";
 import { cn } from "@/lib/utils";
@@ -233,10 +233,26 @@ export default function NewEntry() {
     queryKey: ["/api/templates"],
   });
 
+  // Fetch ACTIVE strategies only (for Live Trading - excludes experimental)
+  const { data: activeStrategies = [] } = useQuery<Strategy[]>({
+    queryKey: ["/api/strategies", "active"],
+    queryFn: async () => {
+      const res = await fetch("/api/strategies?status=active", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch strategies");
+      return res.json();
+    },
+  });
+
   // Extract strategy names from playbook templates - memoized to prevent infinite loops
   const playbookStrategies = useMemo(() => {
-    return playbookTemplates.map((template) => template.name);
-  }, [playbookTemplates]);
+    const playbookNames = playbookTemplates.map((template) => template.name);
+    // Also include active strategies from strategies table
+    const activeNames = activeStrategies.map((s) => s.name);
+    // Combine and deduplicate
+    return Array.from(new Set([...playbookNames, ...activeNames])).sort();
+  }, [playbookTemplates, activeStrategies]);
   
   // Track if user is entering a custom strategy (not from Playbook)
   const [isCustomStrategy, setIsCustomStrategy] = useState(false);

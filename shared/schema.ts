@@ -231,6 +231,22 @@ export const portfolioAssets = pgTable("portfolio_assets", {
 });
 
 // ==========================================
+// 11. STRATEGIES TABLE
+// ==========================================
+export const strategies = pgTable("strategies", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  status: varchar("status", { length: 20 }).default("active").notNull(), // "active" | "archived" | "experimental"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==========================================
 // 8. SCHEMAS & TYPES
 // ==========================================
 export const insertAccountSchema = createInsertSchema(accounts).omit({
@@ -267,6 +283,11 @@ export const insertPortfolioAssetSchema = createInsertSchema(portfolioAssets).om
   createdAt: true,
   updatedAt: true,
 });
+export const insertStrategySchema = createInsertSchema(strategies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -286,3 +307,5 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = typeof userSettings.$inferInsert;
 export type PortfolioAsset = typeof portfolioAssets.$inferSelect;
 export type InsertPortfolioAsset = typeof portfolioAssets.$inferInsert;
+export type Strategy = typeof strategies.$inferSelect;
+export type InsertStrategy = typeof strategies.$inferInsert;
