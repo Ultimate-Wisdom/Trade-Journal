@@ -143,7 +143,7 @@ export default function MarketIntel() {
 
           {/* Trading Bias Summary (Large/Detailed) */}
           <div className="mb-6 md:mb-8">
-            <TradingBias symbol={selectedSymbol} compact={false} />
+            <TradingBias symbol={selectedSymbol} compact={false} showSelector={false} />
           </div>
 
           {/* News Feed */}

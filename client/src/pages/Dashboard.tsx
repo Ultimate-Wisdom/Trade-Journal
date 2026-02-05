@@ -25,7 +25,6 @@ import { useQuery } from "@tanstack/react-query";
 import { AddAccountDialog } from "@/components/add-account-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Account, Trade as DBTrade } from "@shared/schema";
 import { Trade } from "@/lib/mockData";
@@ -34,19 +33,9 @@ import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 import { calculateRRR } from "@/lib/utils";
 
 
-// Market symbols for Trading Bias selector
-const BIAS_SYMBOLS = [
-  { value: "EURUSD", label: "EUR/USD" },
-  { value: "GBPUSD", label: "GBP/USD" },
-  { value: "XAUUSD", label: "Gold" },
-  { value: "BTC", label: "Bitcoin" },
-  { value: "NAS100", label: "Nasdaq" },
-];
-
 export default function Dashboard() {
   const { maskValue } = usePrivacyMode();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [selectedBiasSymbol, setSelectedBiasSymbol] = useState("EURUSD");
   
   // Fetch real accounts and trades
   const { data: accounts, isLoading: isLoadingAccounts } = useQuery<Account[]>({
@@ -305,24 +294,6 @@ export default function Dashboard() {
             </div>
 
             <div className="flex items-center gap-4">
-              {/* Symbol Selector for Trading Bias */}
-              <div className="flex items-center gap-2">
-                <label htmlFor="bias-symbol" className="text-xs text-muted-foreground hidden md:inline">
-                  Macro:
-                </label>
-                <Select value={selectedBiasSymbol} onValueChange={setSelectedBiasSymbol}>
-                  <SelectTrigger id="bias-symbol" className="w-[100px] md:w-[120px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BIAS_SYMBOLS.map((pair) => (
-                      <SelectItem key={pair.value} value={pair.value}>
-                        {pair.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="hidden md:block text-right">
                 <p className="text-xs text-muted-foreground font-mono">
                   {selectedAccount ? "ACCOUNT BALANCE" : "TOTAL EQUITY"}
@@ -404,8 +375,11 @@ export default function Dashboard() {
           </div>
 
           {/* Charts Section */}
-          <div className="grid grid-cols-1 gap-3 md:gap-4 md:grid-cols-7 mb-3 md:mb-8">
-            <div className="md:col-span-4 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-3 md:p-6 h-[250px] md:h-[400px] flex flex-col overflow-hidden">
+          {/* Desktop: Top Row (Equity 50% + Bias 50%), Bottom Row (Intelligence 100%) */}
+          {/* Mobile: Vertical Stack (Equity -> Bias -> Intelligence) */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-8">
+            {/* Equity Curve - 50% on desktop, full width on mobile */}
+            <div className="lg:col-span-2 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-3 md:p-6 h-[250px] md:h-[400px] flex flex-col overflow-hidden">
               <div className="mb-2 md:mb-4 flex items-center justify-center md:justify-between flex-shrink-0">
                 <h3 className="text-sm md:text-base font-semibold leading-none tracking-tight">
                   Equity Curve
@@ -415,18 +389,15 @@ export default function Dashboard() {
                 <EquityChart selectedAccountId={selectedAccountId} />
               </div>
             </div>
-            <div className="md:col-span-3">
-              {/* UNIFIED COMMANDER CONSOLE (Mobile: Stacked, Desktop: Side-by-Side) */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 items-stretch">
-                {/* 1. Global Macro (Market Radar) - Top on Mobile */}
-                <div className="w-full h-full">
-                  <TradingBias symbol={selectedBiasSymbol} />
-                </div>
-                {/* 2. Strategic Intelligence (Risk Manager) - Bottom on Mobile */}
-                <div className="w-full h-full">
-                  <WeeklyInsight trades={journalTrades} />
-                </div>
-              </div>
+            
+            {/* Trading Bias - 50% on desktop (right of Equity), full width on mobile (below Equity) */}
+            <div className="lg:col-span-2">
+              <TradingBias showSelector={true} />
+            </div>
+            
+            {/* Strategic Intelligence - Full width on desktop (below top row), full width on mobile (below Trading Bias) */}
+            <div className="lg:col-span-4">
+              <WeeklyInsight trades={journalTrades} />
             </div>
           </div>
 

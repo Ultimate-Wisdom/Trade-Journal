@@ -49,11 +49,11 @@ const navigationGroups = [
   {
     title: "Analysis",
     links: [
+      { href: "/market-intel", label: "Global Macro", icon: Globe },
       { href: "/calendar", label: "Calendar", icon: Calendar },
       { href: "/backtest", label: "Backtest", icon: ChartColumnStacked },
       { href: "/portfolio", label: "Portfolio", icon: ChartPie },
       { href: "/playbook", label: "Playbook", icon: BookOpen },
-      { href: "/market-intel", label: "Global Macro", icon: Globe },
     ],
   },
   {

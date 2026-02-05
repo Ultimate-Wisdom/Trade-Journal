@@ -1,11 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, TrendingUp, TrendingDown, Minus, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useState, useEffect } from "react";
+
+// Market symbols for Trading Bias selector
+const BIAS_SYMBOLS = [
+  { value: "EURUSD", label: "EUR/USD" },
+  { value: "GBPUSD", label: "GBP/USD" },
+  { value: "XAUUSD", label: "Gold" },
+  { value: "BTC", label: "Bitcoin" },
+  { value: "NAS100", label: "Nasdaq" },
+];
 
 interface MarketIntelResponse {
   bias: {
@@ -17,11 +27,17 @@ interface MarketIntelResponse {
 }
 
 interface TradingBiasProps {
-  symbol?: string; // Optional symbol, defaults to EURUSD
+  symbol?: string; // Optional symbol, defaults to EURUSD (for external control)
   compact?: boolean; // If true, displays larger version for dedicated page
+  showSelector?: boolean; // If true, shows the symbol selector in header
 }
 
-export function TradingBias({ symbol = "EURUSD", compact = false }: TradingBiasProps) {
+export function TradingBias({ symbol: externalSymbol, compact = false, showSelector = true }: TradingBiasProps) {
+  // Internal state for symbol selection (only used if showSelector is true)
+  const [internalSymbol, setInternalSymbol] = useState("EURUSD");
+  
+  // Use internal state if selector is shown, otherwise use external symbol or default
+  const symbol = showSelector ? internalSymbol : (externalSymbol || "EURUSD");
   const { data: intel, isLoading, error, dataUpdatedAt } = useQuery<MarketIntelResponse>({
     queryKey: ["/api/market-intel", symbol],
     queryFn: async () => {
@@ -123,11 +139,28 @@ export function TradingBias({ symbol = "EURUSD", compact = false }: TradingBiasP
   return (
     <Card className={cn("border-sidebar-border bg-card/50 backdrop-blur-sm h-full flex flex-col")}>
       <CardHeader className={cn("pb-2 md:pb-3", compact && "pb-3 md:pb-4")}>
-        <CardTitle className={cn("text-sm md:text-lg font-semibold text-foreground flex items-center justify-between")}>
+        <CardTitle className={cn("text-sm md:text-lg font-semibold text-foreground flex items-center justify-between gap-2")}>
           <span>Trading Bias</span>
-          <Badge variant="secondary" className="text-[10px] px-2 py-0.5 font-mono bg-primary/10 text-primary border-primary/20">
-            {symbol}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {showSelector ? (
+              <Select value={symbol} onValueChange={setInternalSymbol}>
+                <SelectTrigger className="h-7 w-[90px] md:w-[110px] text-xs border-primary/20 bg-primary/5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BIAS_SYMBOLS.map((pair) => (
+                    <SelectItem key={pair.value} value={pair.value}>
+                      {pair.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge variant="secondary" className="text-[10px] px-2 py-0.5 font-mono bg-primary/10 text-primary border-primary/20">
+                {symbol}
+              </Badge>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className={cn("flex flex-col justify-between pt-0", !compact && "flex-1")}>
