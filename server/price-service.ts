@@ -1,5 +1,5 @@
 /**
- * Price Service - Fetches live cryptocurrency prices from Binance Public API
+ * Price Service - Hybrid approach: Binance for major coins, Jupiter for Solana tokens
  */
 
 interface BinanceTickerResponse {
@@ -7,12 +7,19 @@ interface BinanceTickerResponse {
   price: string;
 }
 
-interface Binance24hrResponse {
-  symbol: string;
-  priceChangePercent: string;
+interface JupiterPriceResponse {
+  data: {
+    [tokenId: string]: {
+      id: string;
+      mintSymbol: string;
+      vsToken: string;
+      vsTokenSymbol: string;
+      price: string;
+    };
+  };
 }
 
-// Mapping from CoinGecko IDs to Binance tickers
+// Mapping from CoinGecko IDs to Binance tickers (major coins)
 const COINGECKO_TO_BINANCE: Record<string, string> = {
   'bitcoin': 'BTCUSDT',
   'ethereum': 'ETHUSDT',
@@ -22,6 +29,14 @@ const COINGECKO_TO_BINANCE: Record<string, string> = {
   'usd-coin': 'USDCUSDT',
   'usdc': 'USDCUSDT', // Alternative name
   'tether': 'USDT', // Special case - will be handled separately
+};
+
+// Mapping from CoinGecko IDs to Jupiter token IDs (Solana tokens)
+const COINGECKO_TO_JUPITER: Record<string, string> = {
+  'jito-staked-sol': 'JitoSOL',
+  'jitosol': 'JitoSOL',
+  'ghostwareos': 'GHOST',
+  'ghost': 'GHOST',
 };
 
 // In-memory cache to prevent rate limiting
@@ -73,13 +88,13 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
     }
   }
 
-  // Cache expired or empty - fetch new prices from Binance API
+  // Cache expired or empty - fetch new prices using hybrid approach
   try {
-    console.log('📡 Fetching Binance prices for IDs:', cleanIds);
+    console.log('📡 Fetching prices for IDs:', cleanIds);
 
-    // Map CoinGecko IDs to Binance tickers
-    const tickerMap = new Map<string, string>(); // CoinGecko ID -> Binance ticker
-    const binanceTickers: string[] = [];
+    // Separate IDs into Binance and Jupiter categories
+    const binanceIds: string[] = [];
+    const jupiterIds: string[] = [];
     
     for (const id of cleanIds) {
       // Special case: Tether is always $1.00
@@ -87,14 +102,15 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
         continue; // Will be handled separately
       }
       
-      const ticker = COINGECKO_TO_BINANCE[id];
-      if (ticker) {
-        tickerMap.set(id, ticker);
-        if (!binanceTickers.includes(ticker)) {
-          binanceTickers.push(ticker);
-        }
+      // Check if it's a Solana token (Jupiter)
+      if (COINGECKO_TO_JUPITER[id]) {
+        jupiterIds.push(id);
+      } 
+      // Check if it's a major coin (Binance)
+      else if (COINGECKO_TO_BINANCE[id]) {
+        binanceIds.push(id);
       } else {
-        console.warn(`⚠️  No Binance ticker mapping for: ${id}`);
+        console.warn(`⚠️  No price source mapping for: ${id}`);
       }
     }
 
@@ -106,56 +122,119 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
       priceMap.set('usdt', 1.00);
     }
 
-    // Fetch prices from Binance if we have any tickers
-    if (binanceTickers.length > 0) {
-      // Binance Public API endpoint for ticker price
-      // Docs: https://binance-docs.github.io/apidocs/spot/en/#24hr-ticker-price-change-statistics
-      const url = `https://api.binance.com/api/v3/ticker/price`;
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        console.error(`❌ Binance API error: ${response.status} ${response.statusText}`);
-        // Return cached prices if available, even if stale
-        if (CACHE.prices.size > 0) {
-          console.log('⚠️  API error, returning stale cached prices');
-          const staleResult = new Map<string, number>();
-          for (const id of cleanIds) {
-            const price = CACHE.prices.get(id);
-            if (price !== undefined) {
-              staleResult.set(id, price);
+    // Step 1: Fetch major coins from Binance
+    if (binanceIds.length > 0) {
+      try {
+        console.log('📡 Step 1: Fetching from Binance for:', binanceIds);
+        
+        // Map CoinGecko IDs to Binance tickers
+        const tickerMap = new Map<string, string>(); // CoinGecko ID -> Binance ticker
+        const binanceTickers: string[] = [];
+        
+        for (const id of binanceIds) {
+          const ticker = COINGECKO_TO_BINANCE[id];
+          if (ticker) {
+            tickerMap.set(id, ticker);
+            if (!binanceTickers.includes(ticker)) {
+              binanceTickers.push(ticker);
             }
           }
-          return staleResult;
         }
-        return priceMap; // Return what we have (Tether if applicable)
-      }
 
-      const data: BinanceTickerResponse[] = await response.json();
-      
-      // Create a map of Binance ticker -> price
-      const binancePriceMap = new Map<string, number>();
-      for (const ticker of data) {
-        const price = parseFloat(ticker.price);
-        if (!isNaN(price)) {
-          binancePriceMap.set(ticker.symbol, price);
-        }
-      }
+        // Binance Public API endpoint for ticker price
+        const url = `https://api.binance.com/api/v3/ticker/price`;
 
-      // Map Binance prices back to CoinGecko IDs
-      for (const [coinGeckoId, binanceTicker] of tickerMap.entries()) {
-        const price = binancePriceMap.get(binanceTicker);
-        if (price !== undefined && price > 0) {
-          priceMap.set(coinGeckoId, price);
-          console.log(`✅ ${coinGeckoId} (${binanceTicker}): $${price.toFixed(2)}`);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data: BinanceTickerResponse[] = await response.json();
+          
+          // Create a map of Binance ticker -> price
+          const binancePriceMap = new Map<string, number>();
+          for (const ticker of data) {
+            const price = parseFloat(ticker.price);
+            if (!isNaN(price)) {
+              binancePriceMap.set(ticker.symbol, price);
+            }
+          }
+
+          // Map Binance prices back to CoinGecko IDs
+          for (const [coinGeckoId, binanceTicker] of tickerMap.entries()) {
+            const price = binancePriceMap.get(binanceTicker);
+            if (price !== undefined && price > 0) {
+              priceMap.set(coinGeckoId, price);
+              console.log(`✅ Binance: ${coinGeckoId} (${binanceTicker}): $${price.toFixed(2)}`);
+            } else {
+              console.warn(`⚠️  Binance price not found for ${coinGeckoId} (${binanceTicker})`);
+            }
+          }
         } else {
-          console.warn(`⚠️  Price not found for ${coinGeckoId} (${binanceTicker})`);
+          console.error(`❌ Binance API error: ${response.status} ${response.statusText}`);
         }
+      } catch (error) {
+        console.error('❌ Failed to fetch from Binance:', error);
+      }
+    }
+
+    // Step 2: Fetch Solana tokens from Jupiter API
+    if (jupiterIds.length > 0) {
+      try {
+        console.log('📡 Step 2: Fetching from Jupiter for:', jupiterIds);
+        
+        // Map CoinGecko IDs to Jupiter token IDs
+        const jupiterTokenIds: string[] = [];
+        const jupiterIdMap = new Map<string, string>(); // CoinGecko ID -> Jupiter token ID
+        
+        for (const id of jupiterIds) {
+          const jupiterId = COINGECKO_TO_JUPITER[id];
+          if (jupiterId) {
+            jupiterTokenIds.push(jupiterId);
+            jupiterIdMap.set(id, jupiterId);
+          }
+        }
+
+        if (jupiterTokenIds.length > 0) {
+          // Jupiter API endpoint for price
+          // Docs: https://station.jup.ag/docs/apis/price-api
+          const idsParam = jupiterTokenIds.join(',');
+          const url = `https://api.jup.ag/price/v2?ids=${idsParam}`;
+
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+
+          if (response.ok) {
+            const data: JupiterPriceResponse = await response.json();
+            
+            // Extract prices from Jupiter response
+            for (const [coinGeckoId, jupiterTokenId] of jupiterIdMap.entries()) {
+              const tokenData = data.data[jupiterTokenId];
+              if (tokenData && tokenData.price) {
+                const price = parseFloat(tokenData.price);
+                if (!isNaN(price) && price > 0) {
+                  priceMap.set(coinGeckoId, price);
+                  console.log(`✅ Jupiter: ${coinGeckoId} (${jupiterTokenId}): $${price.toFixed(6)}`);
+                } else {
+                  console.warn(`⚠️  Invalid Jupiter price for ${coinGeckoId} (${jupiterTokenId})`);
+                }
+              } else {
+                console.warn(`⚠️  Jupiter price not found for ${coinGeckoId} (${jupiterTokenId})`);
+              }
+            }
+          } else {
+            console.error(`❌ Jupiter API error: ${response.status} ${response.statusText}`);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch from Jupiter:', error);
       }
     }
 
