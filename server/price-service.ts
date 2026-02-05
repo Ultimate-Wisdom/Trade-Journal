@@ -31,12 +31,13 @@ const COINGECKO_TO_BINANCE: Record<string, string> = {
   'tether': 'USDT', // Special case - will be handled separately
 };
 
-// Mapping from CoinGecko IDs to Jupiter token IDs (Solana tokens)
-const COINGECKO_TO_JUPITER: Record<string, string> = {
-  'jito-staked-sol': 'JitoSOL',
-  'jitosol': 'JitoSOL',
-  'ghostwareos': 'GHOST',
-  'ghost': 'GHOST',
+// Mapping from CoinGecko IDs to Jupiter mint addresses (Solana tokens)
+// Jupiter API requires mint addresses, not token names
+const SOLANA_MINTS: Record<string, string> = {
+  'jito-staked-sol': 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', // Official JitoSOL Mint
+  'jitosol': 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', // Alternative name
+  'ghostwareos': 'BBKPiLM9KjdJW7oQSKt99RVWcZdhF6sEHRKnwqeBGHST', // Official GhostwareOS Mint
+  'ghost': 'BBKPiLM9KjdJW7oQSKt99RVWcZdhF6sEHRKnwqeBGHST', // Alternative name
 };
 
 // In-memory cache to prevent rate limiting
@@ -102,8 +103,8 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
         continue; // Will be handled separately
       }
       
-      // Check if it's a Solana token (Jupiter)
-      if (COINGECKO_TO_JUPITER[id]) {
+      // Check if it's a Solana token (Jupiter) - uses mint addresses
+      if (SOLANA_MINTS[id]) {
         jupiterIds.push(id);
       } 
       // Check if it's a major coin (Binance)
@@ -186,23 +187,28 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
       try {
         console.log('📡 Step 2: Fetching from Jupiter for:', jupiterIds);
         
-        // Map CoinGecko IDs to Jupiter token IDs
-        const jupiterTokenIds: string[] = [];
-        const jupiterIdMap = new Map<string, string>(); // CoinGecko ID -> Jupiter token ID
+        // Map CoinGecko IDs to Jupiter mint addresses
+        const jupiterMintAddresses: string[] = [];
+        const jupiterIdMap = new Map<string, string>(); // CoinGecko ID -> Jupiter mint address
         
         for (const id of jupiterIds) {
-          const jupiterId = COINGECKO_TO_JUPITER[id];
-          if (jupiterId) {
-            jupiterTokenIds.push(jupiterId);
-            jupiterIdMap.set(id, jupiterId);
+          const mintAddress = SOLANA_MINTS[id];
+          if (mintAddress) {
+            // Avoid duplicates (multiple IDs can map to same mint)
+            if (!jupiterMintAddresses.includes(mintAddress)) {
+              jupiterMintAddresses.push(mintAddress);
+            }
+            jupiterIdMap.set(id, mintAddress);
           }
         }
 
-        if (jupiterTokenIds.length > 0) {
-          // Jupiter API endpoint for price
+        if (jupiterMintAddresses.length > 0) {
+          // Jupiter API endpoint for price (requires mint addresses, not token names)
           // Docs: https://station.jup.ag/docs/apis/price-api
-          const idsParam = jupiterTokenIds.join(',');
+          const idsParam = jupiterMintAddresses.join(',');
           const url = `https://api.jup.ag/price/v2?ids=${idsParam}`;
+
+          console.log(`🔗 Jupiter API URL: ${url}`);
 
           const response = await fetch(url, {
             method: 'GET',
@@ -215,22 +221,29 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
             const data: JupiterPriceResponse = await response.json();
             
             // Extract prices from Jupiter response
-            for (const [coinGeckoId, jupiterTokenId] of jupiterIdMap.entries()) {
-              const tokenData = data.data[jupiterTokenId];
+            // Jupiter returns prices keyed by mint address
+            for (const [coinGeckoId, mintAddress] of jupiterIdMap.entries()) {
+              const tokenData = data.data[mintAddress];
               if (tokenData && tokenData.price) {
                 const price = parseFloat(tokenData.price);
                 if (!isNaN(price) && price > 0) {
                   priceMap.set(coinGeckoId, price);
-                  console.log(`✅ Jupiter: ${coinGeckoId} (${jupiterTokenId}): $${price.toFixed(6)}`);
+                  console.log(`✅ Jupiter: ${coinGeckoId} (${mintAddress.substring(0, 8)}...): $${price.toFixed(6)}`);
                 } else {
-                  console.warn(`⚠️  Invalid Jupiter price for ${coinGeckoId} (${jupiterTokenId})`);
+                  console.warn(`⚠️  Invalid Jupiter price for ${coinGeckoId} (mint: ${mintAddress})`);
                 }
               } else {
-                console.warn(`⚠️  Jupiter price not found for ${coinGeckoId} (${jupiterTokenId})`);
+                console.warn(`⚠️  Jupiter price not found for ${coinGeckoId} (mint: ${mintAddress})`);
+                // Log available keys for debugging
+                if (data.data) {
+                  console.log(`   Available Jupiter tokens: ${Object.keys(data.data).join(', ')}`);
+                }
               }
             }
           } else {
-            console.error(`❌ Jupiter API error: ${response.status} ${response.statusText}`);
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error(`❌ Jupiter API error: ${response.status} ${response.statusText}`, errorText);
+            // Continue - don't fail the entire request if Jupiter fails
           }
         }
       } catch (error) {
