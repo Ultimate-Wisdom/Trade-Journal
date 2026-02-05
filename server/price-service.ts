@@ -1,5 +1,5 @@
 /**
- * Price Service - Hybrid approach: Binance for major coins, Jupiter for Solana tokens
+ * Price Service - Hybrid approach: Binance for major coins, DexScreener for Solana tokens
  */
 
 interface BinanceTickerResponse {
@@ -7,16 +7,53 @@ interface BinanceTickerResponse {
   price: string;
 }
 
-interface JupiterPriceResponse {
-  data: {
-    [tokenId: string]: {
-      id: string;
-      mintSymbol: string;
-      vsToken: string;
-      vsTokenSymbol: string;
-      price: string;
-    };
+interface DexScreenerPair {
+  chainId: string;
+  dexId: string;
+  url: string;
+  pairAddress: string;
+  baseToken: {
+    address: string;
+    name: string;
+    symbol: string;
   };
+  quoteToken: {
+    address: string;
+    name: string;
+    symbol: string;
+  };
+  priceNative: string;
+  priceUsd: string;
+  txns: {
+    m5: { buys: number; sells: number };
+    h1: { buys: number; sells: number };
+    h6: { buys: number; sells: number };
+    h24: { buys: number; sells: number };
+  };
+  volume: {
+    h24: number;
+    h6: number;
+    h1: number;
+    m5: number;
+  };
+  priceChange: {
+    m5: number;
+    h1: number;
+    h6: number;
+    h24: number;
+  };
+  liquidity?: {
+    usd?: number;
+    base?: number;
+    quote?: number;
+  };
+  fdv?: number;
+  pairCreatedAt?: number;
+}
+
+interface DexScreenerResponse {
+  schemaVersion: string;
+  pairs: DexScreenerPair[] | null;
 }
 
 // Mapping from CoinGecko IDs to Binance tickers (major coins)
@@ -31,8 +68,8 @@ const COINGECKO_TO_BINANCE: Record<string, string> = {
   'tether': 'USDT', // Special case - will be handled separately
 };
 
-// Mapping from CoinGecko IDs to Jupiter mint addresses (Solana tokens)
-// Jupiter API requires mint addresses, not token names
+// Mapping from CoinGecko IDs to DexScreener mint addresses (Solana tokens)
+// DexScreener API uses Solana mint addresses
 const SOLANA_MINTS: Record<string, string> = {
   'jito-staked-sol': 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', // Official JitoSOL Mint
   'jitosol': 'J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn', // Alternative name
@@ -93,9 +130,9 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
   try {
     console.log('📡 Fetching prices for IDs:', cleanIds);
 
-    // Separate IDs into Binance and Jupiter categories
+    // Separate IDs into Binance and DexScreener categories
     const binanceIds: string[] = [];
-    const jupiterIds: string[] = [];
+    const jupiterIds: string[] = []; // Note: Variable name kept for compatibility, but now uses DexScreener
     
     for (const id of cleanIds) {
       // Special case: Tether is always $1.00
@@ -103,7 +140,7 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
         continue; // Will be handled separately
       }
       
-      // Check if it's a Solana token (Jupiter) - uses mint addresses
+      // Check if it's a Solana token (DexScreener) - uses mint addresses
       if (SOLANA_MINTS[id]) {
         jupiterIds.push(id);
       } 
@@ -182,75 +219,104 @@ export async function getLivePrices(ids: string[]): Promise<Map<string, number>>
       }
     }
 
-    // Step 2: Fetch Solana tokens from Jupiter API
+    // Step 2: Fetch Solana tokens from DexScreener API (using mint addresses)
     if (jupiterIds.length > 0) {
       try {
-        console.log('📡 Step 2: Fetching from Jupiter for:', jupiterIds);
+        console.log('📡 Step 2: Fetching from DexScreener for:', jupiterIds);
         
-        // Map CoinGecko IDs to Jupiter mint addresses
-        const jupiterMintAddresses: string[] = [];
-        const jupiterIdMap = new Map<string, string>(); // CoinGecko ID -> Jupiter mint address
+        // Map CoinGecko IDs to DexScreener mint addresses
+        const dexScreenerMintAddresses: string[] = [];
+        const dexScreenerIdMap = new Map<string, string>(); // CoinGecko ID -> DexScreener mint address
         
         for (const id of jupiterIds) {
           const mintAddress = SOLANA_MINTS[id];
           if (mintAddress) {
             // Avoid duplicates (multiple IDs can map to same mint)
-            if (!jupiterMintAddresses.includes(mintAddress)) {
-              jupiterMintAddresses.push(mintAddress);
+            if (!dexScreenerMintAddresses.includes(mintAddress)) {
+              dexScreenerMintAddresses.push(mintAddress);
             }
-            jupiterIdMap.set(id, mintAddress);
+            dexScreenerIdMap.set(id, mintAddress);
           }
         }
 
-        if (jupiterMintAddresses.length > 0) {
-          // Jupiter API endpoint for price (requires mint addresses, not token names)
-          // Docs: https://station.jup.ag/docs/apis/price-api
-          const idsParam = jupiterMintAddresses.join(',');
-          const url = `https://api.jup.ag/price/v2?ids=${idsParam}`;
+        if (dexScreenerMintAddresses.length > 0) {
+          // DexScreener API endpoint for price (requires mint addresses)
+          // Docs: https://docs.dexscreener.com/
+          const idsParam = dexScreenerMintAddresses.join(',');
+          const url = `https://api.dexscreener.com/latest/dex/tokens/${idsParam}`;
 
-          console.log(`🔗 Jupiter API URL: ${url}`);
-          console.log("📡 Fetching Jupiter prices...");
+          console.log(`🔗 DexScreener API URL: ${url}`);
+          console.log("📡 Fetching DexScreener prices...");
 
           const response = await fetch(url, {
             method: 'GET',
             headers: {
-              // CRITICAL: This header tricks Cloudflare into letting us in
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
               'Accept': 'application/json',
             },
           });
 
           if (response.ok) {
-            const data: JupiterPriceResponse = await response.json();
+            const data: DexScreenerResponse = await response.json();
             
-            // Extract prices from Jupiter response
-            // Jupiter returns prices keyed by mint address
-            for (const [coinGeckoId, mintAddress] of jupiterIdMap.entries()) {
-              const tokenData = data.data[mintAddress];
-              if (tokenData && tokenData.price) {
-                const price = parseFloat(tokenData.price);
-                if (!isNaN(price) && price > 0) {
-                  priceMap.set(coinGeckoId, price);
-                  console.log(`✅ Jupiter: ${coinGeckoId} (${mintAddress.substring(0, 8)}...): $${price.toFixed(6)}`);
-                } else {
-                  console.warn(`⚠️  Invalid Jupiter price for ${coinGeckoId} (mint: ${mintAddress})`);
+            if (data.pairs && Array.isArray(data.pairs)) {
+              // Group pairs by mint address (baseToken.address)
+              const pairsByMint = new Map<string, DexScreenerPair[]>();
+              
+              for (const pair of data.pairs) {
+                const mintAddress = pair.baseToken.address;
+                if (!pairsByMint.has(mintAddress)) {
+                  pairsByMint.set(mintAddress, []);
                 }
-              } else {
-                console.warn(`⚠️  Jupiter price not found for ${coinGeckoId} (mint: ${mintAddress})`);
-                // Log available keys for debugging
-                if (data.data) {
-                  console.log(`   Available Jupiter tokens: ${Object.keys(data.data).join(', ')}`);
+                pairsByMint.get(mintAddress)!.push(pair);
+              }
+              
+              // For each CoinGecko ID, find the pair with highest liquidity
+              for (const [coinGeckoId, mintAddress] of dexScreenerIdMap.entries()) {
+                const pairs = pairsByMint.get(mintAddress);
+                
+                if (pairs && pairs.length > 0) {
+                  // Find pair with highest liquidity (liquidity.usd)
+                  let bestPair: DexScreenerPair | null = null;
+                  let highestLiquidity = 0;
+                  
+                  for (const pair of pairs) {
+                    const liquidity = pair.liquidity?.usd || 0;
+                    if (liquidity > highestLiquidity) {
+                      highestLiquidity = liquidity;
+                      bestPair = pair;
+                    }
+                  }
+                  
+                  if (bestPair && bestPair.priceUsd) {
+                    const price = parseFloat(bestPair.priceUsd);
+                    if (!isNaN(price) && price > 0) {
+                      priceMap.set(coinGeckoId, price);
+                      const change24h = bestPair.priceChange?.h24 || 0;
+                      console.log(`✅ DexScreener: ${coinGeckoId} (${mintAddress.substring(0, 8)}...): $${price.toFixed(6)} (24h: ${change24h.toFixed(2)}%, Liq: $${(highestLiquidity / 1000).toFixed(0)}k)`);
+                    } else {
+                      console.warn(`⚠️  Invalid DexScreener price for ${coinGeckoId} (mint: ${mintAddress})`);
+                    }
+                  } else {
+                    console.warn(`⚠️  No valid pair found for ${coinGeckoId} (mint: ${mintAddress})`);
+                  }
+                } else {
+                  console.warn(`⚠️  DexScreener price not found for ${coinGeckoId} (mint: ${mintAddress})`);
                 }
               }
+            } else {
+              console.warn('⚠️  DexScreener returned invalid data format');
             }
           } else {
             const errorText = await response.text().catch(() => 'Unknown error');
-            console.error(`❌ Jupiter Blocked Us: ${response.status} ${response.statusText}`, errorText);
-            // Continue - don't fail the entire request if Jupiter fails
+            console.error(`❌ DexScreener API error: ${response.status} ${response.statusText}`, errorText);
+            // Continue - don't fail the entire request if DexScreener fails
           }
         }
       } catch (error) {
-        console.error('❌ Failed to fetch from Jupiter:', error);
+        console.error('❌ Failed to fetch from DexScreener:', error);
+        // Continue - don't fail the entire request if DexScreener fails
+        // Binance prices will still be returned
       }
     }
 
