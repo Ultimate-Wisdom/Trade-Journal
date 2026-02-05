@@ -24,6 +24,7 @@ const Settings = lazy(() => import("@/pages/Settings"));
 const Strategies = lazy(() => import("@/pages/Strategies"));
 const StrategyPlaybook = lazy(() => import("@/pages/StrategyPlaybook"));
 const DebugTrades = lazy(() => import("@/pages/DebugTrades"));
+const MarketIntel = lazy(() => import("@/pages/MarketIntel"));
 
 // Loading component
 function LoadingFallback() {
@@ -86,6 +87,7 @@ function Router() {
         <Route path="/playbook" component={StrategyPlaybook} />
         <Route path="/settings" component={Settings} />
         <Route path="/analytics" component={Dashboard} />
+        <Route path="/market-intel" component={MarketIntel} />
         <Route path="/debug" component={DebugTrades} />
         <Route component={NotFound} />
       </Switch>

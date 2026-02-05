@@ -530,7 +530,7 @@ export function WeeklyInsight({ trades }: WeeklyInsightProps) {
   }, [dashboardIntelligence, weeklyStats, trades]);
 
   return (
-    <div className="col-span-2 md:col-span-3 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative min-h-[140px] md:min-h-[160px]">
+    <div className="h-full rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-0 overflow-hidden relative flex flex-col">
       <img
         src={generatedImage}
         alt="Abstract visualization"
@@ -576,7 +576,7 @@ export function WeeklyInsight({ trades }: WeeklyInsightProps) {
               <div className="text-muted-foreground/70 text-[0.6rem] md:text-[0.65rem] uppercase tracking-wider">
                 Intelligence Brief
               </div>
-              <div className="text-foreground/90 leading-relaxed pl-2 border-l-2 border-muted-foreground/30 py-1">
+              <div className="text-xs md:text-sm text-muted-foreground leading-relaxed break-words whitespace-normal font-sans md:font-mono min-w-0 w-full">
                 {insight.analysis}
               </div>
             </div>
@@ -586,7 +586,7 @@ export function WeeklyInsight({ trades }: WeeklyInsightProps) {
               <div className="text-muted-foreground/70 text-[0.6rem] md:text-[0.65rem] uppercase tracking-wider">
                 Action Required
               </div>
-              <div className="text-foreground font-bold leading-relaxed pl-2 border-l-2 border-primary/50 bg-primary/5 py-1.5 px-2 rounded-r">
+              <div className="font-mono text-xs md:text-sm text-foreground font-bold break-words whitespace-pre-wrap leading-relaxed pl-2 border-l-2 border-primary/50 bg-primary/5 py-1.5 px-2 rounded-r">
                 &gt;&gt; DIRECTIVE: {insight.directive}
               </div>
             </div>

@@ -5,6 +5,7 @@ import { setupAuth } from "./auth";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { getLivePrices, calculateCryptoValue } from "./price-service";
+import { getForexBias } from "./services/fundamentalService";
 import Groq from "groq-sdk";
 import {
   validateTradeCreation,
@@ -1920,6 +1921,36 @@ OUTPUT: Return ONLY a valid JSON object with status, analysis, and directive fie
   console.log("✅ GET /api/settings route registered");
   console.log("✅ POST /api/settings route registered");
   console.log("✅ POST /api/generate-insight route registered");
+
+  // ==========================================
+  // MARKET INTELLIGENCE API
+  // ==========================================
+  app.get("/api/market-intel", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      const symbol = (req.query.symbol as string) || "EURUSD";
+      
+      // Validate symbol format (basic check)
+      if (typeof symbol !== "string" || symbol.length > 10) {
+        return res.status(400).json({
+          error: "Invalid Symbol",
+          message: "Symbol must be a valid string (e.g., EURUSD, GBPUSD)",
+        });
+      }
+
+      const intel = await getForexBias(symbol);
+      res.json(intel);
+    } catch (error: any) {
+      console.error("❌ GET /api/market-intel failed:", error);
+      res.status(500).json({
+        error: "Server Error",
+        message: error.message || "Failed to fetch market intelligence",
+      });
+    }
+  });
+
+  console.log("✅ GET /api/market-intel route registered");
   console.log("✅ All routes registered successfully");
   return httpServer;
 }

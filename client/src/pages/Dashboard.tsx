@@ -4,6 +4,7 @@ import { EquityChart } from "@/components/dashboard/EquityChart";
 import { StrategyInsights } from "@/components/dashboard/StrategyInsights";
 import { MostProfitableDay } from "@/components/dashboard/MostProfitableDay";
 import { WeeklyInsight } from "@/components/dashboard/WeeklyInsight";
+import { TradingBias } from "@/components/dashboard/TradingBias";
 import { TradeTable } from "@/components/journal/TradeTable";
 import { AccountTree } from "@/components/AccountTree";
 import { SessionAnalysis } from "@/components/analytics/SessionAnalysis";
@@ -24,77 +25,28 @@ import { useQuery } from "@tanstack/react-query";
 import { AddAccountDialog } from "@/components/add-account-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Account, Trade as DBTrade } from "@shared/schema";
 import { Trade } from "@/lib/mockData";
 import { useMemo, useState } from "react";
 import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
+import { calculateRRR } from "@/lib/utils";
 
-/**
- * Calculate Risk:Reward Ratio from entry, stop loss, and take profit
- * Returns the numeric ratio (e.g., 2.0 for 1:2.0) or null if invalid
- */
-export function calculateRRR(
-  entry: number | undefined,
-  sl: number | undefined,
-  tp: number | undefined,
-  direction: "Long" | "Short" | null | undefined
-): number | null {
-  if (!entry || !sl || !tp) return null;
 
-  const entryNum = Number(entry);
-  const slNum = Number(sl);
-  const tpNum = Number(tp);
-
-  if (isNaN(entryNum) || isNaN(slNum) || isNaN(tpNum)) return null;
-
-  // Validate based on direction
-  if (direction === "Long") {
-    if (slNum >= entryNum) return null; // SL must be lower for Long
-    if (tpNum <= entryNum) return null; // TP must be higher for Long
-  } else if (direction === "Short") {
-    if (slNum <= entryNum) return null; // SL must be higher for Short
-    if (tpNum >= entryNum) return null; // TP must be lower for Short
-  }
-
-  const risk = Math.abs(entryNum - slNum);
-  const reward = Math.abs(tpNum - entryNum);
-
-  if (risk === 0) return null;
-
-  const ratio = reward / risk;
-  return ratio;
-}
-
-/**
- * Calculate average Risk:Reward Ratio from a list of trades
- * Uses the same calculation logic as Dashboard stats
- * Returns the numeric average (e.g., 2.0 for 1:2.0) or 0 if no valid trades
- */
-export function calculateAverageRR(trades: Trade[]): number {
-  let totalRR = 0;
-  let rrCount = 0;
-
-  trades.forEach((trade) => {
-    // Calculate R:R from entry, stop loss, and take profit
-    const calculatedRR = calculateRRR(
-      trade.entryPrice,
-      trade.slPrice,
-      trade.tpPrice,
-      trade.direction
-    );
-    
-    if (calculatedRR !== null) {
-      totalRR += calculatedRR;
-      rrCount++;
-    }
-  });
-
-  return rrCount > 0 ? totalRR / rrCount : 0;
-}
+// Market symbols for Trading Bias selector
+const BIAS_SYMBOLS = [
+  { value: "EURUSD", label: "EUR/USD" },
+  { value: "GBPUSD", label: "GBP/USD" },
+  { value: "XAUUSD", label: "Gold" },
+  { value: "BTC", label: "Bitcoin" },
+  { value: "NAS100", label: "Nasdaq" },
+];
 
 export default function Dashboard() {
   const { maskValue } = usePrivacyMode();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedBiasSymbol, setSelectedBiasSymbol] = useState("EURUSD");
   
   // Fetch real accounts and trades
   const { data: accounts, isLoading: isLoadingAccounts } = useQuery<Account[]>({
@@ -290,8 +242,44 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-8 animate-in fade-in duration-500 p-4 md:p-6">
+        {/* Header Skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+
+        {/* Account Selector Skeleton */}
+        <Skeleton className="h-32 w-full rounded-xl" />
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-32 rounded-xl" />
+          ))}
+        </div>
+
+        {/* Charts Section Skeleton */}
+        <div className="grid grid-cols-1 gap-3 md:gap-4 md:grid-cols-7">
+          <Skeleton className="md:col-span-4 h-[250px] md:h-[400px] rounded-xl" />
+          <div className="md:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Skeleton className="h-[300px] rounded-xl" />
+            <Skeleton className="h-[300px] rounded-xl" />
+          </div>
+        </div>
+
+        {/* Bottom Stats Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-48 rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -317,6 +305,24 @@ export default function Dashboard() {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Symbol Selector for Trading Bias */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="bias-symbol" className="text-xs text-muted-foreground hidden md:inline">
+                  Macro:
+                </label>
+                <Select value={selectedBiasSymbol} onValueChange={setSelectedBiasSymbol}>
+                  <SelectTrigger id="bias-symbol" className="w-[100px] md:w-[120px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BIAS_SYMBOLS.map((pair) => (
+                      <SelectItem key={pair.value} value={pair.value}>
+                        {pair.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="hidden md:block text-right">
                 <p className="text-xs text-muted-foreground font-mono">
                   {selectedAccount ? "ACCOUNT BALANCE" : "TOTAL EQUITY"}
@@ -398,16 +404,30 @@ export default function Dashboard() {
           </div>
 
           {/* Charts Section */}
-          <div className="grid gap-3 md:gap-4 md:grid-cols-7 mb-3 md:mb-8">
-            <div className="col-span-2 md:col-span-4 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-3 md:p-6">
-              <div className="mb-2 md:mb-4 flex items-center justify-between">
+          <div className="grid grid-cols-1 gap-3 md:gap-4 md:grid-cols-7 mb-3 md:mb-8">
+            <div className="md:col-span-4 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-3 md:p-6 h-[250px] md:h-[400px] flex flex-col overflow-hidden">
+              <div className="mb-2 md:mb-4 flex items-center justify-center md:justify-between flex-shrink-0">
                 <h3 className="text-sm md:text-base font-semibold leading-none tracking-tight">
                   Equity Curve
                 </h3>
               </div>
-              <EquityChart selectedAccountId={selectedAccountId} />
+              <div className="flex-1 min-h-0">
+                <EquityChart selectedAccountId={selectedAccountId} />
+              </div>
             </div>
-            <WeeklyInsight trades={journalTrades} />
+            <div className="md:col-span-3">
+              {/* UNIFIED COMMANDER CONSOLE (Mobile: Stacked, Desktop: Side-by-Side) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 items-stretch">
+                {/* 1. Global Macro (Market Radar) - Top on Mobile */}
+                <div className="w-full h-full">
+                  <TradingBias symbol={selectedBiasSymbol} />
+                </div>
+                {/* 2. Strategic Intelligence (Risk Manager) - Bottom on Mobile */}
+                <div className="w-full h-full">
+                  <WeeklyInsight trades={journalTrades} />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-3 md:mt-8">

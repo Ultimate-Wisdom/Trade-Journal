@@ -3,7 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Target, TrendingUp, DollarSign, BarChart3, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useMemo } from "react";
-import { calculateAverageRR } from "@/pages/Dashboard";
+import { calculateAverageRR } from "@/lib/utils";
 import { Trade } from "@/lib/mockData";
 
 interface PerformanceBenchmarkProps {

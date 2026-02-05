@@ -15,7 +15,8 @@ import {
   Crown,
   Notebook,
   ChartColumnStacked,
-  ChartPie
+  ChartPie,
+  Globe
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,7 @@ const navigationGroups = [
       { href: "/backtest", label: "Backtest", icon: ChartColumnStacked },
       { href: "/portfolio", label: "Portfolio", icon: ChartPie },
       { href: "/playbook", label: "Playbook", icon: BookOpen },
+      { href: "/market-intel", label: "Global Macro", icon: Globe },
     ],
   },
   {
@@ -125,7 +127,7 @@ export function MobileNav() {
                   </div>
                 )}
                 <div className="flex flex-col min-w-0">
-                  <span className="font-sans font-extrabold text-2xl tracking-tight text-amber-400 drop-shadow-md leading-none">
+                  <span className="font-sans font-extrabold text-2xl tracking-tight text-amber-400 drop-shadow-md leading-none animate-pulse">
                     OPES FORGE
                   </span>
                   <span className="font-sans text-[10px] text-slate-500 leading-none">
@@ -230,7 +232,7 @@ export function MobileNav() {
           </div>
         )}
         <div className="flex flex-col min-w-0">
-          <span className="font-sans text-xl font-extrabold tracking-tight text-amber-400 drop-shadow-md leading-none">
+          <span className="font-sans text-xl font-extrabold tracking-tight text-amber-400 drop-shadow-md leading-none animate-pulse">
             OPES FORGE
           </span>
           <span className="font-sans text-[10px] text-slate-500 leading-none">

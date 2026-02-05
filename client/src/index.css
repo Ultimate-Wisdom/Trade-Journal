@@ -481,13 +481,14 @@
     }
 
     /* FORCE 2x2 grid for stats cards on mobile - CRITICAL */
-    .grid.grid-cols-2 {
+    /* Only target explicit grid-cols-2 (not responsive variants like lg:grid-cols-2) */
+    .grid.grid-cols-2:not([class*="lg:grid-cols-2"]):not([class*="md:grid-cols-2"]):not([class*="sm:grid-cols-2"]) {
       display: grid !important;
       grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 
-    /* Prevent ANY grid override on 2-column layouts */
-    [class*="grid"][class*="grid-cols-2"] {
+    /* Prevent ANY grid override on 2-column layouts - but exclude responsive variants */
+    [class*="grid"][class*="grid-cols-2"]:not([class*="lg:grid-cols-2"]):not([class*="md:grid-cols-2"]):not([class*="sm:grid-cols-2"]) {
       display: grid !important;
       grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
@@ -520,7 +521,7 @@
     /* Fix for long numbers in cards */
     .font-mono, [class*="font-mono"] {
       font-size: 0.9em; /* Slightly smaller for mobile */
-      word-break: break-all;
+      word-break: break-word; /* Changed from break-all to break-word */
     }
 
     /* NO GLOBAL TAB OVERRIDES - Let components control their own styles */
@@ -696,4 +697,10 @@
       max-width: calc(100vw - 2rem);
     }
   }
+}
+
+/* Safety override for text wrapping */
+p, div {
+  overflow-wrap: break-word;
+  word-break: normal;
 }
