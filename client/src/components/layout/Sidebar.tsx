@@ -78,6 +78,7 @@ export function Sidebar() {
   const handleLogout = async () => {
     try {
       await fetch("/api/logout", { method: "POST", credentials: "include" });
+      localStorage.removeItem("weekly-insight-cache");
       window.location.href = "/";
     } catch (error) {
       console.error("Logout failed:", error);
@@ -114,7 +115,7 @@ export function Sidebar() {
             </div>
           )}
           <div className="flex flex-col min-w-0">
-            <span className="font-sans text-2xl font-extrabold tracking-tight text-amber-400 drop-shadow-md leading-none animate-pulse">
+            <span className="font-sans text-2xl font-extrabold tracking-tight text-amber-400 drop-shadow-md leading-none">
               OPES FORGE
             </span>
             <span className="font-sans text-[10px] text-slate-500 leading-none">
@@ -161,6 +162,9 @@ export function Sidebar() {
                             : "text-slate-400 hover:text-white hover:bg-white/5"
                         )}
                       >
+                        {isActive && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 flex-shrink-0" aria-hidden />
+                        )}
                         <Icon className={cn(
                           "h-4 w-4 flex-shrink-0",
                           isActive && "text-amber-400"

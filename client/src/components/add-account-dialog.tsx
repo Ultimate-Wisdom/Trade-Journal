@@ -53,6 +53,7 @@ const formSchema = z.object({
   initialBalance: z.string().min(1, "Initial balance is required"),
   currency: z.enum(["USD", "MYR"]),
   color: z.string().min(1, "Color is required"),
+  serverTimezone: z.number().int().min(-12).max(14).default(0),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -77,6 +78,7 @@ export function AddAccountDialog({ account, trigger }: AddAccountDialogProps) {
       initialBalance: account?.initialBalance || "100000",
       currency: "USD",
       color: account?.color || "#2563eb",
+      serverTimezone: account?.serverTimezone ? Number(account.serverTimezone) : 0,
     },
   });
 
@@ -112,6 +114,7 @@ export function AddAccountDialog({ account, trigger }: AddAccountDialogProps) {
         type: values.type,
         initialBalance: balanceInUSD.toFixed(2),
         color: values.color,
+        serverTimezone: values.serverTimezone,
       };
 
       if (isEditMode && account) {
@@ -260,6 +263,37 @@ export function AddAccountDialog({ account, trigger }: AddAccountDialogProps) {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="serverTimezone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Server Timezone</FormLabel>
+                  <Select
+                    onValueChange={(value) => field.onChange(Number(value))}
+                    value={String(field.value)}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="0">UTC (Universal Time)</SelectItem>
+                      <SelectItem value="2">Prop Firm Winter (GMT+2) [Current Finotive/5%ers]</SelectItem>
+                      <SelectItem value="3">Prop Firm Summer (GMT+3) [DST Mode]</SelectItem>
+                      <SelectItem value="8">Malaysia Time (GMT+8)</SelectItem>
+                      <SelectItem value="-5">New York (EST)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription className="text-xs">
+                    Used to convert entry times to UTC when logging trades
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

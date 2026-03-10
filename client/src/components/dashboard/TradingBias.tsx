@@ -5,8 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, TrendingUp, TrendingDown, Minus, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
-import { useState, useEffect } from "react";
+import { format } from "date-fns";
+import { useState } from "react";
 
 // Market symbols for Trading Bias selector
 const BIAS_SYMBOLS = [
@@ -24,6 +24,7 @@ interface MarketIntelResponse {
     confidence: "High" | "Medium" | "Low";
   };
   articles: any[];
+  latestArticleAt?: string;
 }
 
 interface TradingBiasProps {
@@ -38,7 +39,7 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
   
   // Use internal state if selector is shown, otherwise use external symbol or default
   const symbol = showSelector ? internalSymbol : (externalSymbol || "EURUSD");
-  const { data: intel, isLoading, error, dataUpdatedAt } = useQuery<MarketIntelResponse>({
+  const { data: intel, isLoading, error, refetch } = useQuery<MarketIntelResponse>({
     queryKey: ["/api/market-intel", symbol],
     queryFn: async () => {
       const res = await fetch(`/api/market-intel?symbol=${symbol}`, {
@@ -51,14 +52,14 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
     staleTime: 30 * 60 * 1000, // 30 minutes (matches backend cache)
   });
 
-  // Track update time for relative timestamp
-  const [updateTime, setUpdateTime] = useState<Date | null>(null);
-  
-  useEffect(() => {
-    if (dataUpdatedAt) {
-      setUpdateTime(new Date(dataUpdatedAt));
-    }
-  }, [dataUpdatedAt]);
+  // Format article release time (exact time from newest article)
+  const getArticleTime = () => {
+    const dateStr = intel?.latestArticleAt ?? intel?.articles?.[0]?.publishedDate;
+    if (!dateStr) return "Published time unknown";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "Published time unknown";
+    return format(d, "d MMM yyyy, h:mm a");
+  };
 
   // Helper function for status colors
   const getStatusColors = (status: "BULLISH" | "BEARISH" | "NEUTRAL") => {
@@ -114,16 +115,6 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
     : getStatusConfig("NEUTRAL");
   const StatusIcon = statusConfig.icon;
 
-  // Format relative time
-  const getRelativeTime = () => {
-    if (!updateTime) return "Just now";
-    try {
-      return formatDistanceToNow(updateTime, { addSuffix: true });
-    } catch {
-      return "Recently";
-    }
-  };
-
   // Get confidence badge style
   const getConfidenceStyle = (confidence: "High" | "Medium" | "Low") => {
     switch (confidence) {
@@ -137,9 +128,9 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
   };
 
   return (
-    <Card className={cn("border-sidebar-border bg-card/50 backdrop-blur-sm h-full flex flex-col")}>
+    <Card className={cn("border-sidebar-border bg-card/50 backdrop-blur-sm h-full flex flex-col card-enhanced transition-shadow duration-200")}>
       <CardHeader className={cn("pb-2 md:pb-3", compact && "pb-3 md:pb-4")}>
-        <CardTitle className={cn("text-sm md:text-lg font-semibold text-foreground flex items-center justify-between gap-2")}>
+        <CardTitle className={cn("text-sm md:text-lg font-semibold text-foreground flex items-center justify-between gap-2 font-heading")}>
           <span>Trading Bias</span>
           <div className="flex items-center gap-2">
             {showSelector ? (
@@ -165,17 +156,25 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
       </CardHeader>
       <CardContent className={cn("flex flex-col justify-between pt-0", !compact && "flex-1")}>
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <p className="text-[10px] text-muted-foreground/70">Fetching market sentiment...</p>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-6 space-y-2">
+          <div className="flex flex-col items-center justify-center py-6 space-y-3">
             <p className="text-xs text-muted-foreground text-center">
               Failed to load market intelligence
             </p>
             <p className="text-[10px] text-muted-foreground/70 text-center">
               {error instanceof Error ? error.message : "Unknown error"}
             </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="text-xs text-primary hover:underline font-medium"
+            >
+              Retry
+            </button>
           </div>
         ) : intel ? (
           <>
@@ -183,7 +182,7 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
             <div className={cn(compact ? "mb-4 md:mb-5" : "mb-3 md:mb-4")}>
               <div
                 className={cn(
-                  "flex items-center justify-center gap-2 px-4 rounded-lg border",
+                  "flex items-center justify-center gap-2 px-4 rounded-lg border shadow-inner",
                   statusConfig.bg,
                   statusConfig.border,
                   compact ? "py-4 md:py-5" : "py-3 md:py-4"
@@ -207,10 +206,10 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
                   {statusConfig.label}
                 </span>
               </div>
-              {/* Dynamic Timestamp */}
+              {/* Article release time */}
               <div className="mt-2 flex items-center justify-center">
                 <span className="text-[10px] text-muted-foreground/70 font-medium">
-                  Updated {getRelativeTime()}
+                  {getArticleTime()}
                 </span>
               </div>
               {intel.bias.confidence && (
@@ -248,8 +247,15 @@ export function TradingBias({ symbol: externalSymbol, compact = false, showSelec
             )}
           </>
         ) : (
-          <div className="flex items-center justify-center py-6">
-            <p className="text-xs text-muted-foreground">No data available</p>
+          <div className="flex flex-col items-center justify-center py-6 gap-2">
+            <p className="text-xs text-muted-foreground">No market data available</p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="text-xs text-primary hover:underline font-medium"
+            >
+              Retry
+            </button>
           </div>
         )}
       </CardContent>

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Filter, PlusCircle, Loader2, Download, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Search, Filter, PlusCircle, Loader2, Download, TrendingUp, TrendingDown, Minus, Plus, Notebook } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PageTransition } from "@/components/PageTransition";
 
 export default function Journal() {
   const [trades, setTrades] = useState([]);
@@ -210,22 +211,32 @@ export default function Journal() {
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
-        <div className="container mx-auto p-0 md:p-6 max-w-7xl">
-          <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-4 md:px-0">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                Trade Journal
-              </h1>
-              <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                Your live and real trading history.
-              </p>
+        <PageTransition className="container mx-auto p-0 md:p-6 max-w-7xl">
+          <header className="mb-6 md:mb-8 px-4 md:px-0">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight font-heading">
+                  Trade Journal
+                </h1>
+                <p className="text-xs md:text-sm text-muted-foreground mt-1">
+                  Your live and real trading history.
+                </p>
+              </div>
+              {/* Desktop: Auto-width button at top right */}
+              <Link href="/new-entry" className="hidden md:block">
+                <Button className="gap-2">
+                  <PlusCircle className="h-4 w-4" />
+                  New Entry
+                </Button>
+              </Link>
+              {/* Tablet: Full-width button at top */}
+              <Link href="/new-entry" className="w-full sm:block md:hidden">
+                <Button className="gap-2 w-full">
+                  <PlusCircle className="h-4 w-4" />
+                  New Entry
+                </Button>
+              </Link>
             </div>
-            <Link href="/new-entry">
-              <Button className="gap-2 w-full md:w-auto">
-                <PlusCircle className="h-4 w-4" />
-                New Entry
-              </Button>
-            </Link>
           </header>
 
           {/* Quick Filters */}
@@ -381,6 +392,28 @@ export default function Journal() {
               <Loader2 className="h-8 w-8 animate-spin mb-2" />
               <p>Loading your trades...</p>
             </div>
+          ) : trades.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4 border border-dashed border-border rounded-xl bg-card/30">
+              <Notebook className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium text-foreground mb-1">No trades yet</p>
+              <p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
+                Add your first trade to start building your journal and see analytics.
+              </p>
+              <Link href="/new-entry">
+                <Button className="gap-2">
+                  <PlusCircle className="h-4 w-4" />
+                  Add first trade
+                </Button>
+              </Link>
+            </div>
+          ) : filteredTrades.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed border-border rounded-xl bg-card/30">
+              <Search className="h-10 w-10 text-muted-foreground mb-3" />
+              <p className="text-sm font-medium text-foreground mb-1">No matches</p>
+              <p className="text-xs text-muted-foreground text-center">
+                Try changing your filters or search.
+              </p>
+            </div>
           ) : (
             <TradeTable
               trades={filteredTrades}
@@ -393,7 +426,18 @@ export default function Journal() {
               }}
             />
           )}
-        </div>
+        </PageTransition>
+
+        {/* Floating Action Button (FAB) for Mobile Only */}
+        <Link href="/new-entry" className="sm:hidden">
+          <Button
+            size="lg"
+            className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 p-0"
+            aria-label="New Entry"
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
+        </Link>
       </main>
 
       {/* Delete Confirmation Dialog */}

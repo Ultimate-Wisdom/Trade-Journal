@@ -58,15 +58,19 @@ export function setupAuth(app: Express) {
     );
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
+  const useSecureCookie = process.env.USE_SECURE_COOKIE === "true" || isProduction;
+
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: false, // 🔴 Force false for Replit compatibility
-      httpOnly: true, // Prevent XSS attacks
+      secure: useSecureCookie,
+      httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+      sameSite: "lax",
     },
   };
 

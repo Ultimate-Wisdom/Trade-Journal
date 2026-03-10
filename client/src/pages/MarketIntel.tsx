@@ -1,9 +1,15 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { TradingBias } from "@/components/dashboard/TradingBias";
+import { DailyNarrativeCard } from "@/components/dashboard/DailyNarrativeCard";
+import { SmartMoneyGauge } from "@/components/dashboard/SmartMoneyGauge";
+import { CentralBankRadar } from "@/components/dashboard/CentralBankRadar";
+import { CurrencyStrengthMatrix } from "@/components/dashboard/CurrencyStrengthMatrix";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ExternalLink, Calendar, Globe } from "lucide-react";
+import { Loader2, ExternalLink, Globe, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -41,6 +47,42 @@ const FOREX_PAIRS = [
 
 export default function MarketIntel() {
   const [selectedSymbol, setSelectedSymbol] = useState("EURUSD");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const generateMacroBiasMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/macro-bias/generate", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to generate macro bias");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/macro-bias"] });
+      toast({ title: "Macro bias generated", description: "Daily narrative and central bank radar updated." });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+    },
+  });
+
+  // Extract base currency for COT gauge
+  const baseCurrency = useMemo(() => {
+    const upperSymbol = selectedSymbol.toUpperCase();
+    const first3 = upperSymbol.substring(0, 3);
+    const cotSymbolMap: Record<string, string> = {
+      'EUR': 'EUR',
+      'GBP': 'GBP',
+      'JPY': 'JPY',
+      'USD': 'DXY',
+    };
+    return cotSymbolMap[first3] || 'EUR'; // Default to EUR
+  }, [selectedSymbol]);
 
   const { data: intel, isLoading, error } = useQuery<MarketIntelResponse>({
     queryKey: ["/api/market-intel", selectedSymbol],
@@ -108,48 +150,85 @@ export default function MarketIntel() {
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
-        <div className="container mx-auto px-4 py-6 md:p-8 max-w-6xl">
+        <div className="container mx-auto p-0 md:p-6 max-w-7xl">
           {/* Header */}
-          <header className="mb-6 md:mb-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
-                  <Globe className="h-6 w-6 md:h-7 md:w-7 text-primary" />
-                  Global Macro
-                </h1>
-                <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                  Real-time institutional sentiment and event monitoring.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <label htmlFor="symbol-select" className="text-sm text-muted-foreground">
-                  Pair:
-                </label>
-                <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
-                  <SelectTrigger id="symbol-select" className="w-[140px] md:w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FOREX_PAIRS.map((pair) => (
-                      <SelectItem key={pair.value} value={pair.value}>
-                        {pair.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-4 md:px-0">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2 font-heading">
+                <Globe className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+                Global Macro
+              </h1>
+              <p className="text-xs md:text-sm text-muted-foreground mt-1">
+                Real-time institutional sentiment and event monitoring.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => generateMacroBiasMutation.mutate()}
+                disabled={generateMacroBiasMutation.isPending}
+                className="border-primary/30 text-primary hover:bg-primary/10"
+              >
+                {generateMacroBiasMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1.5" />
+                )}
+                {generateMacroBiasMutation.isPending ? "Generating…" : "Generate macro bias"}
+              </Button>
+              <label htmlFor="symbol-select" className="text-sm text-muted-foreground">
+                Pair:
+              </label>
+              <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
+                <SelectTrigger id="symbol-select" className="w-[140px] md:w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FOREX_PAIRS.map((pair) => (
+                    <SelectItem key={pair.value} value={pair.value}>
+                      {pair.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </header>
 
+          {/* Institutional Header - 3 Columns */}
+          <div className="mb-3 md:mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-3 md:mb-4">
+              {/* Column 1: Daily Narrative Card */}
+              <div className="h-full w-full">
+                <DailyNarrativeCard />
+              </div>
+
+              {/* Column 2: Smart Money Gauge */}
+              <div className="h-full w-full">
+                <SmartMoneyGauge symbol={baseCurrency} />
+              </div>
+
+              {/* Column 3: Central Bank Heatmap */}
+              <div className="h-full w-full">
+                <CentralBankRadar />
+              </div>
+            </div>
+
+            {/* Currency Strength Matrix */}
+            <div className="w-full">
+              <CurrencyStrengthMatrix />
+            </div>
+          </div>
+
           {/* Trading Bias Summary (Large/Detailed) */}
-          <div className="mb-6 md:mb-8">
+          <div className="mb-3 md:mb-8">
             <TradingBias symbol={selectedSymbol} compact={false} showSelector={false} />
           </div>
 
           {/* News Feed */}
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg md:text-xl font-semibold">News Feed</h2>
+              <h2 className="text-lg md:text-xl font-semibold font-heading">News Feed</h2>
               {intel && (
                 <span className="text-xs md:text-sm text-muted-foreground">
                   {intel.articles.length} articles
@@ -158,8 +237,9 @@ export default function MarketIntel() {
             </div>
 
             {isLoading ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex flex-col items-center justify-center py-12 gap-2">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground/70">Loading news feed...</p>
               </div>
             ) : error ? (
               <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
@@ -175,7 +255,7 @@ export default function MarketIntel() {
                 </CardContent>
               </Card>
             ) : intel && intel.articles.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-4">
                 {intel.articles.map((article, index) => {
                   const title = getArticleTitle(article);
                   const text = getArticleText(article);
@@ -190,18 +270,18 @@ export default function MarketIntel() {
                   return (
                     <Card
                       key={index}
-                      className="border-sidebar-border bg-card/50 backdrop-blur-sm hover:bg-card/70 transition-colors cursor-pointer group"
+                      className="border-sidebar-border bg-card/50 backdrop-blur-sm hover:bg-card/70 transition-colors cursor-pointer group rounded-lg md:rounded-xl"
                       onClick={() => {
                         if (url && url !== "#") {
                           window.open(url, "_blank", "noopener,noreferrer");
                         }
                       }}
                     >
-                      <CardContent className="p-4 md:p-6">
-                        <div className="flex gap-4">
+                      <CardContent className="p-3 md:p-6">
+                        <div className="flex gap-3 md:gap-4">
                           {/* Image (Left, Square) */}
                           {image ? (
-                            <div className="flex-shrink-0 w-24 h-24 md:w-28 md:h-28 rounded-lg overflow-hidden bg-muted/30">
+                            <div className="flex-shrink-0 w-20 h-20 md:w-28 md:h-28 rounded-lg overflow-hidden bg-muted/30">
                               <img
                                 src={image}
                                 alt={title}
@@ -213,8 +293,8 @@ export default function MarketIntel() {
                               />
                             </div>
                           ) : (
-                            <div className="flex-shrink-0 w-24 h-24 md:w-28 md:h-28 rounded-lg bg-muted/30 flex items-center justify-center">
-                              <Globe className="h-8 w-8 md:h-10 md:w-10 text-muted-foreground/50" />
+                            <div className="flex-shrink-0 w-20 h-20 md:w-28 md:h-28 rounded-lg bg-muted/30 flex items-center justify-center">
+                              <Globe className="h-6 w-6 md:h-10 md:w-10 text-muted-foreground/50" />
                             </div>
                           )}
 

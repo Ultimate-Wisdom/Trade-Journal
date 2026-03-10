@@ -573,7 +573,7 @@ export default function StrategyPlaybook() {
                 {/* Header: Strategy Name + Edit/Delete */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <h1 className="text-3xl font-bold">{selectedTemplate.name}</h1>
+                    <h1 className="text-3xl font-bold font-heading">{selectedTemplate.name}</h1>
                     {selectedTemplate.strategy && (
                       <p className="text-muted-foreground mt-1">{selectedTemplate.strategy}</p>
                     )}

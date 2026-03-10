@@ -186,7 +186,7 @@ export default function TradingAccounts() {
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
           <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Trading Accounts</h1>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight font-heading">Trading Accounts</h1>
               <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your prop firm and personal accounts.</p>
             </div>
             <AddAccountDialog />

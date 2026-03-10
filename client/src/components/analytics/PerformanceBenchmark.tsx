@@ -95,7 +95,7 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
     return (
       <Card className="border-sidebar-border bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 font-heading">
             <Target className="h-4 w-4 text-primary" />
             Performance Benchmark
           </CardTitle>
@@ -104,7 +104,10 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              No trades available for benchmarking
+              No trades yet
+            </p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Add trades to track progress against your goals
             </p>
           </div>
         </CardContent>
@@ -115,11 +118,11 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "success":
-        return <CheckCircle2 className="h-4 w-4 text-success-green" />;
+        return <CheckCircle2 className="h-4 w-4 text-profit" />;
       case "warning":
         return <AlertCircle className="h-4 w-4 text-yellow-500" />;
       case "danger":
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-loss" />;
       default:
         return null;
     }
@@ -128,11 +131,11 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "success":
-        return "bg-success-green";
+        return "bg-profit";
       case "warning":
         return "bg-yellow-500";
       case "danger":
-        return "bg-red-500";
+        return "bg-loss";
       default:
         return "bg-gray-500";
     }
@@ -141,7 +144,7 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
   return (
     <Card className="border-sidebar-border bg-card/50">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="text-base flex items-center gap-2 font-heading">
           <Target className="h-4 w-4 text-primary" />
           Performance Benchmark
         </CardTitle>
@@ -158,7 +161,7 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
               <span className="text-sm font-medium">Win Rate</span>
               {getStatusIcon(performance.winRate.status)}
             </div>
-            <Badge variant="outline" className={performance.winRate.status === "success" ? "bg-success-green/10 text-success-green border-success-green/20" : ""}>
+            <Badge variant="outline" className={performance.winRate.status === "success" ? "bg-profit/10 text-profit border-profit/20" : ""}>
               {performance.winRate.current.toFixed(1)}% / {performance.winRate.target}%
             </Badge>
           </div>
@@ -173,7 +176,7 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
               <span className="text-sm font-medium">Profit Factor</span>
               {getStatusIcon(performance.profitFactor.status)}
             </div>
-            <Badge variant="outline" className={performance.profitFactor.status === "success" ? "bg-success-green/10 text-success-green border-success-green/20" : ""}>
+            <Badge variant="outline" className={performance.profitFactor.status === "success" ? "bg-profit/10 text-profit border-profit/20" : ""}>
               {performance.profitFactor.current.toFixed(2)} / {performance.profitFactor.target}
             </Badge>
           </div>
@@ -188,7 +191,7 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
               <span className="text-sm font-medium">Monthly P&L</span>
               {getStatusIcon(performance.monthlyPnL.status)}
             </div>
-            <Badge variant="outline" className={performance.monthlyPnL.status === "success" ? "bg-success-green/10 text-success-green border-success-green/20" : ""}>
+            <Badge variant="outline" className={performance.monthlyPnL.status === "success" ? "bg-profit/10 text-profit border-profit/20" : ""}>
               ${performance.monthlyPnL.current.toFixed(0)} / ${performance.monthlyPnL.target}
             </Badge>
           </div>
@@ -204,7 +207,7 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
               <span className="text-sm font-medium">Avg Risk:Reward</span>
               {getStatusIcon(performance.avgRRR.status)}
             </div>
-            <Badge variant="outline" className={performance.avgRRR.status === "success" ? "bg-success-green/10 text-success-green border-success-green/20" : ""}>
+            <Badge variant="outline" className={performance.avgRRR.status === "success" ? "bg-profit/10 text-profit border-profit/20" : ""}>
               1:{performance.avgRRR.current.toFixed(2)} / 1:{performance.avgRRR.target}
             </Badge>
           </div>
@@ -217,10 +220,10 @@ export function PerformanceBenchmark({ trades }: PerformanceBenchmarkProps) {
             <span className="text-sm font-medium">Overall Progress</span>
             <Badge className={
               Object.values(performance).filter(p => p.status === "success").length >= 3
-                ? "bg-success-green hover:bg-success-green/90"
+                ? "bg-profit hover:bg-profit/90"
                 : Object.values(performance).filter(p => p.status === "success").length >= 2
                 ? "bg-yellow-500 hover:bg-yellow-600"
-                : "bg-red-500 hover:bg-red-600"
+                : "bg-loss hover:bg-loss/90"
             }>
               {Object.values(performance).filter(p => p.status === "success").length} / 4 Goals Met
             </Badge>

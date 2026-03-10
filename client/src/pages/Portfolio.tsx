@@ -26,6 +26,7 @@ import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { PortfolioAsset as DBPortfolioAsset } from "@shared/schema";
+import { PageTransition } from "@/components/PageTransition";
 
 type PortfolioAssetWithCalculated = DBPortfolioAsset & {
   calculatedValueUsd?: number | null;
@@ -222,17 +223,17 @@ export default function Portfolio() {
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
-        <div className="container mx-auto p-0 md:p-6 max-w-7xl">
+        <PageTransition className="container mx-auto p-0 md:p-6 max-w-7xl">
           <header className="mb-6 flex justify-between items-center px-4 md:px-0">
-            <h1 className="text-2xl md:text-3xl font-bold">Portfolio Hub</h1>
-            <Button onClick={() => setOpen(true)} className="gap-2"><Plus className="h-4 w-4" /> Add Asset</Button>
+            <h1 className="text-2xl md:text-3xl font-bold font-heading">Portfolio Hub</h1>
+            <Button onClick={() => setOpen(true)} className="gap-2 hover:shadow-lg hover:shadow-primary/10 transition-shadow"><Plus className="h-4 w-4" /> Add Asset</Button>
           </header>
 
           {/* MAIN SCOREBOARD & ALLOCATION CHART */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             
             {/* LEFT: COMMAND CENTER (Net Worth + Stats Merged) */}
-            <Card className="lg:col-span-2 border-sidebar-border bg-card/50 flex flex-col justify-between">
+            <Card className="lg:col-span-2 border-sidebar-border bg-card/50 flex flex-col justify-between card-enhanced">
               <CardContent className="pt-6 h-full flex flex-col justify-between">
                 {/* Top Section: Main Net Worth */}
                 <div className="space-y-6">
@@ -243,6 +244,9 @@ export default function Portfolio() {
                     <div className="text-5xl md:text-6xl font-bold font-mono tracking-tight">
                       {isPrivacyMode ? "****" : formatCurrency(totalNetWorthWithAccounts)}
                     </div>
+                    <p className="text-[10px] md:text-xs text-muted-foreground/80 uppercase tracking-wider">
+                      Live · Updated just now
+                    </p>
                     <div className="flex justify-between text-sm text-muted-foreground">
                       <span>Goal: $1,000,000</span>
                       <span>{progressPercent.toFixed(1)}%</span>
@@ -288,7 +292,7 @@ export default function Portfolio() {
             {/* RIGHT: MEGA DONUT CHART */}
             <Card className="border-sidebar-border bg-card/50">
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2 font-heading">
                   <Coins className="h-4 w-4" /> Allocation
                 </CardTitle>
               </CardHeader>
@@ -363,7 +367,7 @@ export default function Portfolio() {
           </div>
 
           <Card className="border-sidebar-border bg-card/50">
-            <CardHeader><CardTitle className="text-lg">Portfolio Assets</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg font-heading">Portfolio Assets</CardTitle></CardHeader>
             <CardContent className="p-0 md:p-6">
               {/* HEADER ROW (Hidden on very small screens if needed, or kept simple) */}
               <div className="flex items-center px-4 py-2 border-b text-sm font-medium text-muted-foreground">
@@ -374,6 +378,18 @@ export default function Portfolio() {
               {/* ASSET LIST */}
               {isLoadingAssets ? (
                 <div className="flex items-center justify-center py-8 text-muted-foreground">Loading...</div>
+              ) : displayAssets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4">
+                  <ChartPie className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium text-foreground mb-1">No assets yet</p>
+                  <p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
+                    Add cash, crypto, or prop accounts to track your net worth.
+                  </p>
+                  <Button onClick={() => setOpen(true)} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add first asset
+                  </Button>
+                </div>
               ) : displayAssets.map((asset) => {
                 const usdValue = (asset.calculatedValueUsd !== null && asset.calculatedValueUsd !== undefined)
                   ? Number(asset.calculatedValueUsd)
@@ -595,7 +611,7 @@ export default function Portfolio() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
+        </PageTransition>
       </main>
     </div>
   );

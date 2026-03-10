@@ -1,4 +1,4 @@
-import { users, trades, accounts, backtests, tags, tradeTags, tradeTemplates, userSettings, portfolioAssets, strategies } from "@shared/schema";
+import { users, trades, accounts, backtests, tags, tradeTags, tradeTemplates, userSettings, portfolioAssets, strategies, dailyMacroBias, cotData } from "@shared/schema";
 import {
   type User,
   type InsertUser,
@@ -21,7 +21,7 @@ import {
   type InsertStrategy,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, or, isNull } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import session from "express-session";
 import { pool } from "./db";
@@ -67,9 +67,9 @@ export interface IStorage {
   getTags(userId: string): Promise<Tag[]>;
   createTag(tag: InsertTag): Promise<Tag>;
   deleteTag(id: string, userId: string): Promise<boolean>;
-  getTradeTag(tradeId: string): Promise<Tag[]>;
-  addTagToTrade(tradeId: string, tagId: string): Promise<void>;
-  removeTagFromTrade(tradeId: string, tagId: string): Promise<void>;
+  getTradeTag(tradeId: string, userId: string): Promise<Tag[]>;
+  addTagToTrade(tradeId: string, tagId: string, userId: string): Promise<void>;
+  removeTagFromTrade(tradeId: string, tagId: string, userId: string): Promise<void>;
 
   // Trade Template Methods
   getTradeTemplates(userId: string): Promise<TradeTemplate[]>;
@@ -136,8 +136,9 @@ export class DatabaseStorage implements IStorage {
     
     // Filter out adjustments, deposits, and withdrawals unless explicitly requested
     // Only include actual trades (type = "TRADE") for analytics
+    // Treat NULL excludeFromStats as false (include in stats) for backfill compatibility
     if (!includeAdjustments) {
-      conditions.push(eq(trades.excludeFromStats, false));
+      conditions.push(or(isNull(trades.excludeFromStats), eq(trades.excludeFromStats, false)));
       // Explicitly exclude ADJUSTMENT, DEPOSIT, WITHDRAWAL types
       // Only include TRADE type for analytics calculations
       conditions.push(eq(trades.tradeType, "TRADE"));
@@ -254,12 +255,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteAccount(id: string, userId: string): Promise<boolean> {
-    // First, set accountId to null for all trades associated with this account
-    // This handles orphaned references gracefully
+    // First, set accountId to null only for this user's trades with this account
     await db
       .update(trades)
       .set({ accountId: null })
-      .where(eq(trades.accountId, id));
+      .where(and(eq(trades.accountId, id), eq(trades.userId, userId)));
     
     // Then delete the account
     const result = await db
@@ -312,7 +312,9 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async getTradeTag(tradeId: string): Promise<Tag[]> {
+  async getTradeTag(tradeId: string, userId: string): Promise<Tag[]> {
+    const trade = await this.getTrade(tradeId, userId);
+    if (!trade) throw new Error("Trade not found");
     const result = await db
       .select({
         id: tags.id,
@@ -327,11 +329,17 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async addTagToTrade(tradeId: string, tagId: string): Promise<void> {
+  async addTagToTrade(tradeId: string, tagId: string, userId: string): Promise<void> {
+    const trade = await this.getTrade(tradeId, userId);
+    if (!trade) throw new Error("Trade not found");
+    const userTags = await this.getTags(userId);
+    if (!userTags.some((t) => t.id === tagId)) throw new Error("Tag not found");
     await db.insert(tradeTags).values({ tradeId, tagId });
   }
 
-  async removeTagFromTrade(tradeId: string, tagId: string): Promise<void> {
+  async removeTagFromTrade(tradeId: string, tagId: string, userId: string): Promise<void> {
+    const trade = await this.getTrade(tradeId, userId);
+    if (!trade) throw new Error("Trade not found");
     await db
       .delete(tradeTags)
       .where(and(eq(tradeTags.tradeId, tradeId), eq(tradeTags.tagId, tagId)));

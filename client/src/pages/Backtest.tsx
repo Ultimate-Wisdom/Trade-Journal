@@ -334,7 +334,7 @@ export default function Backtest() {
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-[1600px]">
           {/* Header */}
           <header className="mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight font-heading">
               Simulation Engine
             </h1>
             <p className="text-xs md:text-sm text-muted-foreground mt-1">
@@ -623,7 +623,7 @@ export default function Backtest() {
                     <p className="text-xs text-muted-foreground font-mono mb-1">PROJECTED EXPECTANCY</p>
                     <p className={cn(
                       "text-2xl font-bold font-mono",
-                      simulationStats.expectancy >= 0 ? "text-success-green" : "text-red-500"
+                      simulationStats.expectancy >= 0 ? "text-profit" : "text-loss"
                     )}>
                       {formatPnL(simulationStats.expectancy)}
                     </p>
@@ -638,7 +638,7 @@ export default function Backtest() {
                     <p className="text-xs text-muted-foreground font-mono mb-1">TOTAL SIMULATED P&L</p>
                     <p className={cn(
                       "text-2xl font-bold font-mono",
-                      simulationStats.totalPnL >= 0 ? "text-success-green" : "text-red-500"
+                      simulationStats.totalPnL >= 0 ? "text-profit" : "text-loss"
                     )}>
                       {formatPnL(simulationStats.totalPnL)}
                     </p>
@@ -743,8 +743,8 @@ export default function Backtest() {
                                   className={cn(
                                     "text-[10px] font-mono",
                                     bt.direction === "Long"
-                                      ? "text-success-green border-success-green/30"
-                                      : "text-red-500 border-red-500/30"
+                                      ? "text-profit border-profit/30"
+                                      : "text-loss border-loss/30"
                                   )}
                                 >
                                   {bt.direction}

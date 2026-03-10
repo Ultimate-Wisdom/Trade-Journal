@@ -31,6 +31,7 @@ import { Trade } from "@/lib/mockData";
 import { useMemo, useState } from "react";
 import { usePrivacyMode } from "@/contexts/PrivacyModeContext";
 import { calculateRRR } from "@/lib/utils";
+import { PageTransition } from "@/components/PageTransition";
 
 
 export default function Dashboard() {
@@ -143,6 +144,38 @@ export default function Dashboard() {
     let totalRR = 0;
     let rrCount = 0;
 
+    // Helper function to parse RRR value (string "1:2.0" or number)
+    const parseRRRValue = (rrr: string | number | null | undefined): number | null => {
+      if (rrr === null || rrr === undefined) return null;
+      
+      // If it's already a number, return it
+      if (typeof rrr === 'number') {
+        return isNaN(rrr) || rrr <= 0 ? null : rrr;
+      }
+      
+      // If it's a string, parse it
+      if (typeof rrr === 'string') {
+        // Check if it contains a colon (e.g., "1:2.0")
+        if (rrr.includes(':')) {
+          const parts = rrr.split(':');
+          if (parts.length >= 2) {
+            const parsed = parseFloat(parts[1].trim());
+            if (!isNaN(parsed) && parsed > 0) {
+              return parsed;
+            }
+          }
+        } else {
+          // Try to parse as a plain number string
+          const parsed = parseFloat(rrr);
+          if (!isNaN(parsed) && parsed > 0) {
+            return parsed;
+          }
+        }
+      }
+      
+      return null;
+    };
+
     trades.forEach(trade => {
       // Handle null pnl values
       const pnl = Number(trade.pnl || 0);
@@ -155,7 +188,15 @@ export default function Dashboard() {
         grossLoss += Math.abs(pnl);
       }
 
-      // Calculate R:R from entry, stop loss, and take profit (same as Trade Journal)
+      // Priority 1: Use stored rrr field if available (from database)
+      const storedRR = parseRRRValue(trade.rrr);
+      if (storedRR !== null) {
+        totalRR += storedRR;
+        rrCount++;
+        return; // Skip calculation if we have stored value
+      }
+
+      // Priority 2: Calculate R:R from entry, stop loss, and take profit (fallback)
       const calculatedRR = calculateRRR(
         trade.entryPrice,
         trade.slPrice,
@@ -279,11 +320,11 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <MobileNav />
       <main className="flex-1 overflow-y-auto pt-20">
-        <div className="container mx-auto p-0 md:p-6 max-w-7xl">
+        <PageTransition className="container mx-auto p-0 md:p-6 max-w-7xl">
           {/* Header Section */}
           <header className="mb-6 md:mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-4 md:px-0">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight font-heading">
                 Dashboard
               </h1>
               <p className="text-xs md:text-sm text-muted-foreground mt-1">
@@ -343,7 +384,7 @@ export default function Dashboard() {
             {/* Stats Section */}
             <div className="md:col-span-2 grid gap-3 md:gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4 mb-0 md:mb-8">
             <StatsCard
-              title="Total P&L"
+              title="Net P&L"
               value={`$${maskValue(stats.totalPnl)}`}
               change={stats.totalPnl === 0 ? "0.0%" : "---"}
               trend={stats.pnlTrend as "up" | "down" | "neutral"}
@@ -365,7 +406,7 @@ export default function Dashboard() {
               icon={BarChart3}
             />
             <StatsCard
-              title="Avg R:R"
+              title="Avg Risk:Reward"
               value={stats.avgRR > 0 ? `1:${stats.avgRR.toFixed(1)}` : "N/A"}
               change="---"
               trend="neutral"
@@ -374,14 +415,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Charts Section */}
-          {/* Desktop: Top Row (Equity 50% + Bias 50%), Bottom Row (Intelligence 100%) */}
-          {/* Mobile: Vertical Stack (Equity -> Bias -> Intelligence) */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-8">
             {/* Equity Curve - 50% on desktop, full width on mobile */}
-            <div className="lg:col-span-2 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-3 md:p-6 h-[250px] md:h-[400px] flex flex-col overflow-hidden">
+            <div className="lg:col-span-2 rounded-lg md:rounded-xl border bg-card/50 backdrop-blur-sm p-3 md:p-6 h-[250px] md:h-[400px] flex flex-col overflow-hidden card-enhanced transition-shadow duration-200">
               <div className="mb-2 md:mb-4 flex items-center justify-center md:justify-between flex-shrink-0">
-                <h3 className="text-sm md:text-base font-semibold leading-none tracking-tight">
+                <h3 className="text-sm md:text-base font-semibold leading-none tracking-tight font-heading">
                   Equity Curve
                 </h3>
               </div>
@@ -401,24 +439,33 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-3 md:mt-8">
-            <StrategyInsights trades={journalTrades} />
-            <AdvancedStatistics trades={journalTrades} />
-            <div className="space-y-3 md:space-y-4">
-              <CorrelationAnalysis trades={filteredTrades || []} />
-              <MostProfitableDay trades={journalTrades} />
+          <div className="mt-3 md:mt-8">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2 md:mb-3">Analytics</p>
+            <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3">
+              <StrategyInsights trades={journalTrades} />
+              <AdvancedStatistics trades={journalTrades} />
+              <div className="space-y-3 md:space-y-4">
+                <CorrelationAnalysis trades={filteredTrades || []} />
+                <MostProfitableDay trades={journalTrades} />
+              </div>
             </div>
           </div>
 
-          <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3 mt-3 md:mt-8">
-            <PerformanceBenchmark trades={journalTrades} />
-            <SessionAnalysis trades={filteredTrades || []} />
+          <div className="mt-3 md:mt-8">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2 md:mb-3">Benchmarks</p>
+            <div className="grid gap-3 md:gap-4 md:grid-cols-1 lg:grid-cols-3">
+              <PerformanceBenchmark trades={journalTrades} />
+              <SessionAnalysis trades={filteredTrades || []} />
+            </div>
           </div>
 
           <div className="space-y-3 md:space-y-4 mt-3 md:mt-8">
-            <h3 className="text-base md:text-xl font-semibold tracking-tight">
-              Recent Trades
-            </h3>
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-0.5">Activity</p>
+              <h3 className="text-base md:text-xl font-semibold tracking-tight font-heading">
+                Recent Trades
+              </h3>
+            </div>
             <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
               <TradeTable 
                 trades={(filteredTrades || []).slice(0, 5)} 
@@ -428,7 +475,7 @@ export default function Dashboard() {
               />
             </div>
           </div>
-        </div>
+        </PageTransition>
       </main>
     </div>
   );

@@ -5,6 +5,7 @@
 
 @theme inline {
   --font-sans: 'Inter', sans-serif;
+  --font-heading: 'Plus Jakarta Sans', var(--font-sans);
   --font-mono: 'JetBrains Mono', monospace;
 
   --radius-sm: calc(var(--radius) - 2px);
@@ -93,7 +94,7 @@
     --input: 224 15% 20%;
     --ring: 210 100% 60%;
 
-    --radius: 0.25rem; /* Sharp, technical feel */
+    --radius: 0.5rem; /* Softer, modern feel */
 
     --chart-1: 210 100% 60%;
     --chart-2: 150 80% 40%;
@@ -143,6 +144,10 @@
   * {
     @apply border-border;
   }
+  .font-heading {
+    font-family: var(--font-heading), var(--font-sans), sans-serif;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
     background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),

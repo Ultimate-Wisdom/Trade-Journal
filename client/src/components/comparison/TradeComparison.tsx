@@ -36,7 +36,7 @@ export function TradeComparison({ trades, selectedTrades, onRemoveTrade, onClear
       return pnl > 0 ? `+$${pnl.toFixed(2)}` : pnl < 0 ? `-$${Math.abs(pnl).toFixed(2)}` : "$0.00";
     }, color: (v: any) => {
       const pnl = parseFloat(v || "0");
-      return pnl > 0 ? "text-green-500" : pnl < 0 ? "text-red-500" : "";
+      return pnl > 0 ? "text-profit" : pnl < 0 ? "text-loss" : "";
     }},
     { key: "riskPercent", label: "Risk %", format: (v: any) => v ? `${v}%` : "—" },
     { key: "riskRewardRatio", label: "R:R", format: (v: any) => v || "—" },
@@ -97,7 +97,7 @@ export function TradeComparison({ trades, selectedTrades, onRemoveTrade, onClear
                         {field.key === "direction" ? (
                           <Badge
                             variant="outline"
-                            className={value === "Long" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}
+                            className={value === "Long" ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss"}
                           >
                             {value}
                           </Badge>
@@ -158,13 +158,13 @@ export function TradeComparison({ trades, selectedTrades, onRemoveTrade, onClear
             </div>
             <div>
               <p className="text-muted-foreground">Winning Trades</p>
-              <p className="font-bold text-green-500">
+              <p className="font-bold text-profit">
                 {compareTrades.filter(t => parseFloat(t.pnl || "0") > 0).length}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground">Losing Trades</p>
-              <p className="font-bold text-red-500">
+              <p className="font-bold text-loss">
                 {compareTrades.filter(t => parseFloat(t.pnl || "0") < 0).length}
               </p>
             </div>

@@ -27,6 +27,7 @@ export interface MarketIntelResponse {
     confidence: "High" | "Medium" | "Low";
   };
   articles: any[];
+  latestArticleAt?: string; // ISO string of the newest article's pub date
 }
 
 // In-memory cache: symbol -> { data, timestamp }
@@ -184,6 +185,12 @@ Return JSON ONLY:
       console.error("❌ Failed to parse AI response:", parseError);
     }
 
+    let latestArticleAt: string | undefined;
+    if (items.length > 0 && items[0].publishedDate) {
+      const d = new Date(items[0].publishedDate);
+      if (!isNaN(d.getTime())) latestArticleAt = d.toISOString();
+    }
+
     const response: MarketIntelResponse = {
       bias: {
         status: aiResult.status || "NEUTRAL",
@@ -191,6 +198,7 @@ Return JSON ONLY:
         confidence: aiResult.confidence || "Medium",
       },
       articles: items,
+      latestArticleAt,
     };
 
     // Cache the response

@@ -5,6 +5,7 @@ import { setupAuth } from "./auth";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { getLivePrices, calculateCryptoValue } from "./price-service";
+import { getMyrToUsdRateWithFallback } from "./services/currency-service";
 import { getForexBias } from "./services/fundamentalService";
 import Groq from "groq-sdk";
 import {
@@ -95,7 +96,7 @@ export async function registerRoutes(
       if (!req.isAuthenticated()) return res.sendStatus(401);
       if (!storage) throw new Error("Storage engine is undefined");
 
-      const { name, type, initialBalance, color } = req.body;
+      const { name, type, initialBalance, color, serverTimezone } = req.body;
 
       // Validate name
       const nameResult = validateString(name, "Account name", {
@@ -141,6 +142,7 @@ export async function registerRoutes(
         userId,
         initialBalance: String(initialBalance),
         color: color || "#2563eb",
+        serverTimezone: serverTimezone !== undefined ? String(serverTimezone) : "0",
       });
 
       console.log(`✅ Account created: ${newAccount.name} (${newAccount.id})`);
@@ -160,14 +162,17 @@ export async function registerRoutes(
 
       const { id } = req.params;
       const userId = req.user!.id;
-      const updates = req.body;
-
-      // Convert initialBalance to string if provided
-      if (updates.initialBalance) {
+      const body = req.body as Record<string, unknown>;
+      const allowedKeys = ["name", "type", "color", "initialBalance", "serverTimezone"] as const;
+      const updates: Record<string, unknown> = {};
+      for (const key of allowedKeys) {
+        if (body[key] !== undefined) updates[key] = body[key];
+      }
+      if (updates.initialBalance !== undefined) {
         updates.initialBalance = String(updates.initialBalance);
       }
 
-      const updatedAccount = await storage.updateAccount(id, userId, updates);
+      const updatedAccount = await storage.updateAccount(id, userId, updates as Parameters<typeof storage.updateAccount>[2]);
 
       if (!updatedAccount) {
         return res.status(404).json({ message: "Account not found" });
@@ -732,22 +737,24 @@ export async function registerRoutes(
     }
   });
 
-  // Get tags for a specific trade
+  // Get tags for a specific trade (ownership enforced)
   app.get("/api/trades/:id/tags", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       if (!storage) throw new Error("Storage engine is undefined");
 
       const { id } = req.params;
-      const tags = await storage.getTradeTag(id);
+      const userId = req.user!.id;
+      const tags = await storage.getTradeTag(id, userId);
       res.json(tags);
     } catch (error: any) {
+      if (error.message === "Trade not found") return res.status(404).json({ message: "Trade not found" });
       console.error("❌ GET /api/trades/:id/tags failed:", error);
       res.status(500).json({ message: error.message || "Failed to fetch trade tags" });
     }
   });
 
-  // Add a tag to a trade
+  // Add a tag to a trade (ownership enforced)
   app.post("/api/trades/:id/tags", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -755,25 +762,29 @@ export async function registerRoutes(
 
       const { id } = req.params;
       const { tagId } = req.body;
-      
-      await storage.addTagToTrade(id, tagId);
+      const userId = req.user!.id;
+      if (!tagId) return res.status(400).json({ message: "tagId is required" });
+      await storage.addTagToTrade(id, tagId, userId);
       res.status(201).json({ message: "Tag added to trade" });
     } catch (error: any) {
+      if (error.message === "Trade not found" || error.message === "Tag not found") return res.status(404).json({ message: error.message });
       console.error("❌ POST /api/trades/:id/tags failed:", error);
       res.status(500).json({ message: error.message || "Failed to add tag to trade" });
     }
   });
 
-  // Remove a tag from a trade
+  // Remove a tag from a trade (ownership enforced)
   app.delete("/api/trades/:id/tags/:tagId", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       if (!storage) throw new Error("Storage engine is undefined");
 
       const { id, tagId } = req.params;
-      await storage.removeTagFromTrade(id, tagId);
+      const userId = req.user!.id;
+      await storage.removeTagFromTrade(id, tagId, userId);
       res.json({ message: "Tag removed from trade" });
     } catch (error: any) {
+      if (error.message === "Trade not found") return res.status(404).json({ message: "Trade not found" });
       console.error("❌ DELETE /api/trades/:id/tags/:tagId failed:", error);
       res.status(500).json({ message: error.message || "Failed to remove tag from trade" });
     }
@@ -1005,9 +1016,14 @@ export async function registerRoutes(
 
       const { id } = req.params;
       const userId = req.user!.id;
-      const updates = req.body;
+      const body = req.body as Record<string, unknown>;
+      const allowedKeys = ["name", "symbol", "direction", "strategy", "setup", "riskPercent", "riskRewardRatio", "notes", "rules", "tweaks"] as const;
+      const updates: Record<string, unknown> = {};
+      for (const key of allowedKeys) {
+        if (body[key] !== undefined) updates[key] = body[key];
+      }
 
-      const updatedTemplate = await storage.updateTradeTemplate(id, userId, updates);
+      const updatedTemplate = await storage.updateTradeTemplate(id, userId, updates as Parameters<typeof storage.updateTradeTemplate>[2]);
 
       if (!updatedTemplate) {
         return res.status(404).json({ message: "Template not found" });
@@ -1188,9 +1204,14 @@ export async function registerRoutes(
 
       const { id } = req.params;
       const userId = req.user!.id;
-      const updates = req.body;
+      const body = req.body as Record<string, unknown>;
+      const allowedKeys = ["name", "status"] as const;
+      const updates: Record<string, unknown> = {};
+      for (const key of allowedKeys) {
+        if (body[key] !== undefined) updates[key] = body[key];
+      }
 
-      const updated = await storage.updateStrategy(id, userId, updates);
+      const updated = await storage.updateStrategy(id, userId, updates as Parameters<typeof storage.updateStrategy>[2]);
       if (!updated) {
         return res.status(404).json({ message: "Strategy not found" });
       }
@@ -1411,13 +1432,15 @@ export async function registerRoutes(
         .map((asset) => asset.apiId!)
         .filter((id, index, self) => self.indexOf(id) === index); // Unique IDs only
 
-      // Fetch live prices for all crypto assets
-      const prices = await getLivePrices(cryptoApiIds);
+      // Fetch live prices for all crypto assets and MYR/USD rate for cash
+      const [prices, myrPerUsd] = await Promise.all([
+        getLivePrices(cryptoApiIds),
+        getMyrToUsdRateWithFallback(),
+      ]);
 
       // Process assets: preserve original balance, calculate USD value in calculatedValueUsd
       const processedAssets = assets.map((asset) => {
-        // Preserve original balance for backward compatibility
-        const newAsset = { ...asset, originalBalance: asset.balance };
+        const newAsset = { ...asset, originalBalance: asset.balance, calculatedValueUsd: 0 };
         
         // 1. Handle Crypto: Value comes from Price * Quantity
         if (newAsset.type === 'CRYPTO' && newAsset.apiId) {
@@ -1439,11 +1462,9 @@ export async function registerRoutes(
             }
           }
         } 
-        // 2. Handle Cash (MYR): Value comes from Balance / Rate
+        // 2. Handle Cash (MYR): Value comes from Balance / dynamic rate (MYR per 1 USD)
         else if (newAsset.currency === 'MYR') {
-          // CRITICAL: Keep newAsset.balance as the original RM amount (e.g., 16475)
-          // Only put the converted value into the calculated field
-          newAsset.calculatedValueUsd = Number(newAsset.balance) / 4.45;
+          newAsset.calculatedValueUsd = Number(newAsset.balance) / myrPerUsd;
         } 
         // 3. Handle Cash/Investment (USD) and Prop Firm: Value is just the Balance
         else {
@@ -1951,6 +1972,149 @@ OUTPUT: Return ONLY a valid JSON object with status, analysis, and directive fie
   });
 
   console.log("✅ GET /api/market-intel route registered");
+
+  // ==========================================
+  // MACRO NARRATIVE AGENT ROUTES
+  // ==========================================
+  
+  // Import the macro narrative agent service
+  const { generateDailyMacroBias, getLatestMacroBias } = await import("./services/macro-narrative-agent");
+
+  // GET /api/macro-bias - Get the latest daily macro bias
+  app.get("/api/macro-bias", async (req, res) => {
+    try {
+      const bias = await getLatestMacroBias();
+      if (!bias) {
+        return res.status(404).json({ message: "No macro bias analysis available yet" });
+      }
+      res.json(bias);
+    } catch (error: any) {
+      console.error("❌ GET /api/macro-bias failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch macro bias" });
+    }
+  });
+
+  // POST /api/macro-bias/generate - Manually trigger macro bias generation (for testing/admin)
+  app.post("/api/macro-bias/generate", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      
+      console.log("🔄 Manual macro bias generation triggered");
+      await generateDailyMacroBias();
+      
+      const latestBias = await getLatestMacroBias();
+      res.json({
+        message: "Macro bias analysis generated successfully",
+        bias: latestBias,
+      });
+    } catch (error: any) {
+      console.error("❌ POST /api/macro-bias/generate failed:", error);
+      res.status(500).json({ message: error.message || "Failed to generate macro bias" });
+    }
+  });
+
+  console.log("✅ GET /api/macro-bias route registered");
+  console.log("✅ POST /api/macro-bias/generate route registered");
+
+  // ==========================================
+  // COT (COMMITMENT OF TRADERS) ROUTES
+  // ==========================================
+  
+  // Import the COT service
+  const { processCOTData, getCOTData, getLatestCOTSentiment, seedHistoricalCOT } = await import("./services/cot-service");
+
+  // GET /api/cot/:symbol - Get COT data for a specific symbol
+  app.get("/api/cot/:symbol", async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      const upperSymbol = symbol.toUpperCase();
+      
+      if (!["EUR", "GBP", "JPY", "DXY"].includes(upperSymbol)) {
+        return res.status(400).json({ message: "Invalid symbol. Supported: EUR, GBP, JPY, DXY" });
+      }
+
+      const data = await getCOTData(upperSymbol);
+      res.json(data);
+    } catch (error: any) {
+      console.error("❌ GET /api/cot/:symbol failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch COT data" });
+    }
+  });
+
+  // GET /api/cot/:symbol/sentiment - Get latest COT sentiment for a symbol
+  app.get("/api/cot/:symbol/sentiment", async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      const upperSymbol = symbol.toUpperCase();
+      
+      if (!["EUR", "GBP", "JPY", "DXY"].includes(upperSymbol)) {
+        return res.status(400).json({ message: "Invalid symbol. Supported: EUR, GBP, JPY, DXY" });
+      }
+
+      const sentiment = await getLatestCOTSentiment(upperSymbol);
+      if (!sentiment) {
+        return res.status(404).json({ message: "No COT data available for this symbol" });
+      }
+
+      res.json(sentiment);
+    } catch (error: any) {
+      console.error("❌ GET /api/cot/:symbol/sentiment failed:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch COT sentiment" });
+    }
+  });
+
+  // POST /api/cot/process - Manually trigger COT data processing (for testing/admin)
+  app.post("/api/cot/process", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      
+      console.log("🔄 Manual COT data processing triggered");
+      await processCOTData();
+      
+      res.json({ 
+        success: true,
+        message: "COT data processed successfully",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("❌ POST /api/cot/process failed:", error);
+      res.status(500).json({ 
+        success: false,
+        message: error.message || "Failed to process COT data",
+        error: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // POST /api/cot/seed-historical - Seed historical COT data (last 3 years)
+  app.post("/api/cot/seed-historical", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      
+      console.log("📚 Historical COT data seeding triggered");
+      await seedHistoricalCOT();
+      
+      res.json({ 
+        success: true,
+        message: "Historical COT data seeded successfully",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("❌ POST /api/cot/seed-historical failed:", error);
+      res.status(500).json({ 
+        success: false,
+        message: error.message || "Failed to seed historical COT data",
+        error: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  console.log("✅ POST /api/cot/seed-historical route registered");
+
+  console.log("✅ GET /api/cot/:symbol route registered");
+  console.log("✅ GET /api/cot/:symbol/sentiment route registered");
+  console.log("✅ POST /api/cot/process route registered");
   console.log("✅ All routes registered successfully");
   return httpServer;
 }

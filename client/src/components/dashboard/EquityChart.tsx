@@ -40,13 +40,15 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
   const generatePerformanceCurve = (
     trades: DBTrade[],
     initialBalance: number
-  ): { date: string; dateFull: Date; equity: number; dailyChange?: number }[] => {
+  ): { date: string; dateFull: Date; equity: number }[] => {
     // Filter to only include actual trades (exclude adjustments, deposits, withdrawals)
     const tradingTrades = trades.filter((trade) => {
       // Only include TRADE type
       if (trade.tradeType && trade.tradeType !== "TRADE") return false;
       // Exclude trades marked to exclude from stats
       if (trade.excludeFromStats === true) return false;
+      // Exclude open trades (null/undefined PnL) - only include closed trades with actual PnL
+      if (trade.pnl === null || trade.pnl === undefined) return false;
       return true;
     });
 
@@ -62,38 +64,60 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
     const equityData: { 
       date: string; 
       dateFull: Date;
-      equity: number; 
-      dailyChange?: number;
+      equity: number;
     }[] = [];
 
-    // Add starting point
-    if (sortedTrades.length > 0) {
-      const firstTrade = sortedTrades[0];
-      const firstDate = firstTrade.entryDate 
-        ? new Date(firstTrade.entryDate) 
-        : new Date(firstTrade.createdAt);
+    // Process each trade chronologically - only accumulate P&L from actual trades
+    // Group trades by date and aggregate PnL per day to avoid clutter
+    const dailyPnLMap = new Map<string, number>();
+    
+    sortedTrades.forEach((trade) => {
+      const pnl = Number(trade.pnl); // Already filtered to exclude null/undefined
+      const tradeDate = trade.entryDate 
+        ? new Date(trade.entryDate) 
+        : new Date(trade.createdAt);
+      
+      // Use local date string as key (YYYY-MM-DD format)
+      const dateKey = tradeDate.toLocaleDateString("en-CA"); // Returns YYYY-MM-DD
+      
+      // Aggregate PnL for this date
+      dailyPnLMap.set(dateKey, (dailyPnLMap.get(dateKey) || 0) + pnl);
+    });
+
+    // Convert map to sorted array and build equity curve
+    const sortedDates = Array.from(dailyPnLMap.entries()).sort((a, b) => 
+      a[0].localeCompare(b[0])
+    );
+
+    // Add starting point before first trade date (if we have trades)
+    if (sortedDates.length > 0) {
+      const firstDateKey = sortedDates[0][0];
+      const [year, month, day] = firstDateKey.split('-').map(Number);
+      const firstTradeDate = new Date(year, month - 1, day);
+      
+      // Set starting point to one day before first trade
+      const startDate = new Date(firstTradeDate);
+      startDate.setDate(startDate.getDate() - 1);
+      
       equityData.push({
-        date: firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        dateFull: firstDate,
+        date: startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        dateFull: startDate,
         equity: initialBalance,
       });
     }
 
-    // Process each trade chronologically - only accumulate P&L from actual trades
-    sortedTrades.forEach((trade) => {
-      const pnl = trade.pnl ? Number(trade.pnl) : 0;
-      const previousEquity = runningEquity;
-      runningEquity += pnl; // Only add trading P&L, ignore deposits/withdrawals/corrections
-
-      const tradeDate = trade.entryDate 
-        ? new Date(trade.entryDate) 
-        : new Date(trade.createdAt);
+    // Process each day's aggregated PnL
+    sortedDates.forEach(([dateKey, dailyPnL]) => {
+      runningEquity += dailyPnL;
+      
+      // Parse dateKey (YYYY-MM-DD) back to Date object
+      const [year, month, day] = dateKey.split('-').map(Number);
+      const tradeDate = new Date(year, month - 1, day);
 
       equityData.push({
         date: tradeDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         dateFull: tradeDate,
         equity: Math.round(runningEquity * 100) / 100, // Round to 2 decimals
-        dailyChange: runningEquity - previousEquity,
       });
     });
 
@@ -117,7 +141,12 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
     // Filter trades by selected account if specified
     let relevantTrades = allTrades;
     if (selectedAccountId) {
+      // When viewing a specific account, only include trades for that account
       relevantTrades = allTrades.filter((t) => t.accountId === selectedAccountId);
+    } else {
+      // When viewing all accounts, exclude trades with null accountId (orphaned trades)
+      // They shouldn't be included in the aggregate view
+      relevantTrades = allTrades.filter((t) => t.accountId !== null && t.accountId !== undefined);
     }
 
     // Get initial balance(s)
@@ -184,20 +213,13 @@ export function EquityChart({ selectedAccountId }: EquityChartProps) {
 
       return (
         <div className="bg-black/90 border border-slate-800/50 rounded-md shadow-2xl backdrop-blur-sm p-2.5 min-w-[140px]">
-          {/* Date Row */}
           <p className="text-[10px] text-slate-500 mb-1.5 font-mono">{formattedDate}</p>
-          
-          {/* Equity Row */}
-          <p className="text-lg font-bold text-white font-mono tracking-tight mb-1.5">
+          <p className="text-lg font-bold text-white font-mono tracking-tight tabular-nums mb-1.5">
             {formatCurrency(equity)}
           </p>
-          
-          {/* Separator Line */}
           <div className="border-t border-slate-700/50 my-1.5"></div>
-          
-          {/* Daily Change Row */}
-          <p className={`text-sm font-medium font-mono ${
-            dailyPnL >= 0 ? "text-emerald-400" : "text-rose-400"
+          <p className={`text-sm font-medium font-mono tabular-nums ${
+            dailyPnL >= 0 ? "text-profit" : "text-loss"
           }`}>
             {formatDailyPnL(dailyPnL)}
           </p>

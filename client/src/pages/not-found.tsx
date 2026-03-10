@@ -13,7 +13,7 @@ export default function NotFound() {
           <div className="flex flex-col items-center text-center gap-4">
             <div className="flex items-center gap-3 mb-2">
               <AlertCircle className="h-8 w-8 text-destructive" />
-              <h1 className="text-2xl md:text-3xl font-bold">404 Page Not Found</h1>
+              <h1 className="text-2xl md:text-3xl font-bold font-heading">404 Page Not Found</h1>
             </div>
 
             <p className="text-sm text-muted-foreground">

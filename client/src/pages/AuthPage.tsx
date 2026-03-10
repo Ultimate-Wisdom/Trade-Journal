@@ -36,6 +36,8 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a0a] relative overflow-hidden p-4">
+      {/* Subtle noise overlay */}
+      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgbnVtT2N0YXZlcz0iNCIgc3RpdGNoVGlsZXM9InN0aXRjaCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbHRlcj0idXJsKCNhKSIgb3BhY2l0eT0iLjA1Ii8+PC9zdmc+')]" />
       {/* Background Decor */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[120px]" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[120px]" />
@@ -43,7 +45,7 @@ export default function AuthPage() {
       {/* Main Branding Section */}
       <div className="z-10 text-center mb-8 flex flex-col items-center">
         {/* BIG OPES TITLE */}
-        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-white mb-2">
+        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-white mb-2 font-heading">
           OPES FORGE
         </h1>
         
@@ -63,17 +65,19 @@ export default function AuthPage() {
         </div>
       </div>
 
-      {/* Login Card */}
-      <Card className="w-full max-w-md border border-zinc-800 bg-zinc-950/80 backdrop-blur-xl shadow-2xl z-10">
-        <CardHeader className="text-center pb-2">
-          <CardDescription className="text-zinc-500">
-            Identity verification required
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AuthForm onSubmit={onSubmit} />
-        </CardContent>
-      </Card>
+      {/* Login Card with gradient border */}
+      <div className="w-full max-w-md z-10 p-[1px] rounded-xl bg-gradient-to-br from-blue-600/50 via-zinc-600/30 to-amber-600/30 shadow-2xl shadow-blue-900/20">
+        <Card className="w-full border-0 bg-zinc-950/90 backdrop-blur-xl rounded-xl">
+          <CardHeader className="text-center pb-2">
+            <CardDescription className="text-zinc-500">
+              Identity verification required
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AuthForm onSubmit={onSubmit} />
+          </CardContent>
+        </Card>
+      </div>
 
       {/* FOOTER */}
       <div className="absolute bottom-6 z-10">

@@ -66,7 +66,7 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
     return (
       <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-base md:text-lg flex items-center gap-2">
+          <CardTitle className="text-base md:text-lg flex items-center gap-2 font-heading">
             <TrendingUp className="h-5 w-5" />
             Most Profitable Day
           </CardTitle>
@@ -83,7 +83,7 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
   return (
     <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm md:text-lg flex items-center gap-2">
+          <CardTitle className="text-sm md:text-lg flex items-center gap-2 font-heading">
           <TrendingUp className="h-4 w-4 md:h-5 md:w-5" />
           Most Profitable Day
         </CardTitle>
@@ -103,9 +103,8 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
             <div className="flex justify-between items-center">
               <span className="text-[0.65rem] md:text-xs text-muted-foreground">P&L:</span>
               <span
-                className={`text-sm md:text-lg font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
+                className={`text-sm md:text-lg font-bold font-mono tabular-nums ${mostProfitable.pnl >= 0 ? "text-profit" : "text-loss"}`}
               >
-                {/* Fix: Only show + if positive, otherwise allow minus sign to show naturally */}
                 {mostProfitable.pnl > 0 ? "+" : ""}
                 {mostProfitable.pnl.toLocaleString()}
               </span>
@@ -115,7 +114,7 @@ export function MostProfitableDay({ trades }: MostProfitableDayProps) {
                 Avg per trade:
               </span>
               <span
-                className={`text-xs md:text-sm font-bold font-mono ${mostProfitable.pnl >= 0 ? "text-profit" : "text-destructive"}`}
+                className={`text-xs md:text-sm font-bold font-mono tabular-nums ${mostProfitable.pnl >= 0 ? "text-profit" : "text-loss"}`}
               >
                 ${(mostProfitable.pnl / mostProfitable.trades).toFixed(2)}
               </span>

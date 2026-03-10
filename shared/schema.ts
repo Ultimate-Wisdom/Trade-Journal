@@ -37,6 +37,10 @@ export const accounts = pgTable("accounts", {
   }).notNull(),
   type: text("type").notNull(),
   color: text("color").default("#2563eb").notNull(),
+  serverTimezone: numeric("server_timezone", {
+    precision: 3,
+    scale: 0,
+  }).default("0").notNull(), // Integer offset in hours (e.g., 0, 2, 3, 8)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -247,6 +251,55 @@ export const strategies = pgTable("strategies", {
 });
 
 // ==========================================
+// 12. DAILY MACRO BIAS TABLE
+// ==========================================
+export const dailyMacroBias = pgTable("daily_macro_bias", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  analysisDate: timestamp("analysis_date").notNull().unique(), // One entry per day (stored as DATE in DB)
+  sentimentScore: numeric("sentiment_score", {
+    precision: 3,
+    scale: 1,
+  }).notNull(), // Range: -10.0 to +10.0
+  narrativeSummary: text("narrative_summary").notNull(), // 2-sentence AI summary
+  dominantNarrative: varchar("dominant_narrative", { length: 20 }).notNull(), // 'RISK_ON', 'RISK_OFF', 'NEUTRAL'
+  sources: text("sources"), // JSON string containing headlines from sources
+  centralBankPolicy: text("central_bank_policy"), // JSON string containing central bank policy analysis
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==========================================
+// 13. COT DATA TABLE (Commitment of Traders)
+// ==========================================
+export const cotData = pgTable("cot_data", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  symbol: varchar("symbol", { length: 10 }).notNull(), // 'EUR', 'GBP', 'JPY', 'DXY'
+  reportDate: timestamp("report_date").notNull(), // Date of the CFTC report
+  leveragedMoneyLong: numeric("leveraged_money_long", {
+    precision: 20,
+    scale: 2,
+  }), // Long positions
+  leveragedMoneyShort: numeric("leveraged_money_short", {
+    precision: 20,
+    scale: 2,
+  }), // Short positions
+  netPosition: numeric("net_position", {
+    precision: 20,
+    scale: 2,
+  }).notNull(), // Long - Short
+  cotIndex: numeric("cot_index", {
+    precision: 5,
+    scale: 2,
+  }), // COT Index percentage (0-100)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ==========================================
 // 8. SCHEMAS & TYPES
 // ==========================================
 export const insertAccountSchema = createInsertSchema(accounts).omit({
@@ -288,6 +341,16 @@ export const insertStrategySchema = createInsertSchema(strategies).omit({
   createdAt: true,
   updatedAt: true,
 });
+export const insertDailyMacroBiasSchema = createInsertSchema(dailyMacroBias).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertCotDataSchema = createInsertSchema(cotData).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -308,4 +371,8 @@ export type InsertUserSettings = typeof userSettings.$inferInsert;
 export type PortfolioAsset = typeof portfolioAssets.$inferSelect;
 export type InsertPortfolioAsset = typeof portfolioAssets.$inferInsert;
 export type Strategy = typeof strategies.$inferSelect;
+export type DailyMacroBias = typeof dailyMacroBias.$inferSelect;
+export type InsertDailyMacroBias = typeof dailyMacroBias.$inferInsert;
+export type CotData = typeof cotData.$inferSelect;
+export type InsertCotData = typeof cotData.$inferInsert;
 export type InsertStrategy = typeof strategies.$inferInsert;

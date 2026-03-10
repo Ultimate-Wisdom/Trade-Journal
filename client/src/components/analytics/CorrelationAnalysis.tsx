@@ -174,7 +174,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
     return (
       <Card className="border-sidebar-border bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 font-heading">
             <GitBranch className="h-4 w-4 text-primary" />
             Correlation Analysis
           </CardTitle>
@@ -183,7 +183,10 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              Need at least 5 closed trades for correlation analysis
+              Need at least 5 closed trades
+            </p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Continue trading to unlock correlation insights
             </p>
           </div>
         </CardContent>
@@ -194,7 +197,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
   return (
     <Card className="border-sidebar-border bg-card/50">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="text-base flex items-center gap-2 font-heading">
           <GitBranch className="h-4 w-4 text-primary" />
           Correlation Analysis
         </CardTitle>
@@ -231,9 +234,9 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
                     <Badge
                       className={
                         corr.correlation > 0.7
-                          ? "bg-red-500/20 text-red-500 border-red-500/30"
+                          ? "bg-loss/20 text-loss border-loss/30"
                           : corr.correlation < 0.3 && corr.correlation > -0.3
-                          ? "bg-success-green/20 text-success-green border-success-green/30"
+                          ? "bg-profit/20 text-profit border-profit/30"
                           : "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
                       }
                     >
@@ -277,7 +280,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`font-bold ${stat.winRate >= 50 ? "text-success-green" : "text-red-500"}`}>
+                    <p className={`font-bold tabular-nums ${stat.winRate >= 50 ? "text-profit" : "text-loss"}`}>
                       {stat.winRate.toFixed(1)}%
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -301,7 +304,7 @@ export function CorrelationAnalysis({ trades }: CorrelationAnalysisProps) {
                   className="p-3 rounded-lg bg-muted/30 text-center"
                 >
                   <p className="text-sm font-medium">{stat.session}</p>
-                  <p className={`text-lg font-bold mt-1 ${stat.winRate >= 50 ? "text-success-green" : "text-red-500"}`}>
+                  <p className={`text-lg font-bold tabular-nums mt-1 ${stat.winRate >= 50 ? "text-profit" : "text-loss"}`}>
                     {stat.winRate.toFixed(1)}%
                   </p>
                   <p className="text-xs text-muted-foreground">

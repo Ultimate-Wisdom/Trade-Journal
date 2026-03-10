@@ -153,6 +153,7 @@ export default function Settings() {
   const handleLogout = async () => {
     try {
       await fetch("/api/logout", { method: "POST", credentials: "include" });
+      localStorage.removeItem("weekly-insight-cache");
       window.location.href = "/";
     } catch (error) {
       toast({
@@ -251,7 +252,7 @@ export default function Settings() {
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-4xl">
           {/* Header */}
           <header className="mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2 font-heading">
               <SettingsIcon className="h-6 w-6 md:h-7 md:w-7 text-primary" />
               Settings
             </h1>

@@ -44,6 +44,11 @@ import {
   Star,
   Clock,
   Calendar as CalendarIcon,
+  CheckCircle2,
+  XCircle,
+  Minus,
+  TrendingDown,
+  AlertTriangle,
 } from "lucide-react";
 import { Link, useRoute, useLocation } from "wouter";
 import { useState, useEffect, useMemo } from "react";
@@ -114,6 +119,92 @@ export default function NewEntry() {
       return `${hour}:${minute} AM`;
     } else {
       return `${hour - 12}:${minute} PM`;
+    }
+  };
+
+  // Calculate timezone preview: Server Time → Local Time
+  const getTimezonePreview = (): string => {
+    if (!entryTime || !entryTime.includes(':')) return '';
+    
+    try {
+      // Step 1: Parse Input - Extract hours and minutes
+      const [hours, minutes] = entryTime.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes)) return '';
+      
+      // Step 2: Find selected account and its timezone
+      const account = accounts?.find(a => a.id === accountId);
+      const serverTimezone = account?.serverTimezone 
+        ? Number(account.serverTimezone) 
+        : 0;
+      
+      // Step 3: Get date context (use selected date or today)
+      const dateStr = entryDate && typeof entryDate === 'string' && entryDate.trim() !== ''
+        ? String(entryDate).trim()
+        : new Date().toISOString().split('T')[0];
+      
+      // Parse date components
+      const [year, month, day] = dateStr.split('-').map(Number);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
+      
+      // If no timezone offset, just show local time
+      if (serverTimezone === 0) {
+        // Create a date with the entered time in local timezone
+        const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+        const localTime12h = localDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        return `Local: ${localTime12h}`;
+      }
+      
+      // Step 4: Calculate UTC Hour
+      // Formula: utcHour = hours - serverTimezone
+      const utcHour = hours - serverTimezone;
+      
+      // Handle day rollover/rollback
+      let adjustedYear = year;
+      let adjustedMonth = month - 1; // JavaScript months are 0-indexed
+      let adjustedDay = day;
+      let adjustedUtcHour = utcHour;
+      
+      if (adjustedUtcHour < 0) {
+        // Roll back to previous day
+        adjustedUtcHour += 24;
+        adjustedDay -= 1;
+        if (adjustedDay < 1) {
+          adjustedMonth -= 1;
+          if (adjustedMonth < 0) {
+            adjustedMonth = 11;
+            adjustedYear -= 1;
+          }
+          // Get last day of previous month
+          adjustedDay = new Date(adjustedYear, adjustedMonth + 1, 0).getDate();
+        }
+      } else if (adjustedUtcHour >= 24) {
+        // Roll forward to next day
+        adjustedUtcHour -= 24;
+        adjustedDay += 1;
+        const daysInMonth = new Date(adjustedYear, adjustedMonth + 1, 0).getDate();
+        if (adjustedDay > daysInMonth) {
+          adjustedDay = 1;
+          adjustedMonth += 1;
+          if (adjustedMonth > 11) {
+            adjustedMonth = 0;
+            adjustedYear += 1;
+          }
+        }
+      }
+      
+      // Step 5: Create UTC Date using Date.UTC() for absolute timestamp
+      const absoluteDate = new Date(Date.UTC(adjustedYear, adjustedMonth, adjustedDay, adjustedUtcHour, minutes, 0, 0));
+      
+      // Step 6: Format to Local using toLocaleTimeString
+      const localTime12h = absoluteDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      
+      // Format server time for display
+      const serverTime12h = format12Hour(entryTime);
+      
+      return `Server: ${serverTime12h} → Local: ${localTime12h}`;
+    } catch (error) {
+      console.error("Error calculating timezone preview:", error);
+      return '';
     }
   };
   
@@ -455,6 +546,185 @@ export default function NewEntry() {
   const slPercent = entry && sl ? calculateSLPercent(entry, sl, direction) : "—";
   const tpPercent = entry && tp ? calculateTPPercent(entry, tp, direction) : "—";
 
+  // ==========================================
+  // MACRO ALIGNMENT VALIDATION
+  // ==========================================
+  
+  // Extract base currency from symbol (e.g., EURUSD -> EUR, USDJPY -> JPY)
+  const getBaseCurrency = (symbol: string): string | null => {
+    if (!symbol || symbol.length < 3) return null;
+    const upperSymbol = symbol.toUpperCase();
+    
+    // Common forex pairs: first 3 chars are usually the base currency
+    // But for USD pairs (USDJPY, USDCHF), USD is the base
+    const first3 = upperSymbol.substring(0, 3);
+    const last3 = upperSymbol.length >= 6 ? upperSymbol.substring(3, 6) : null;
+    
+    // Map to COT symbols
+    const cotSymbolMap: Record<string, string> = {
+      'EUR': 'EUR',
+      'GBP': 'GBP',
+      'JPY': 'JPY',
+      'USD': 'DXY', // USD Index
+    };
+    
+    // Check if first 3 chars match a known currency
+    if (cotSymbolMap[first3]) {
+      return cotSymbolMap[first3];
+    }
+    
+    // Check if last 3 chars match (for pairs like XAUUSD where XAU is base)
+    if (last3 && cotSymbolMap[last3]) {
+      return cotSymbolMap[last3];
+    }
+    
+    // For USD pairs (USDJPY, USDCHF), the quote currency is what we want
+    if (first3 === 'USD' && last3) {
+      return cotSymbolMap[last3] || null;
+    }
+    
+    return null;
+  };
+
+  const baseCurrency = useMemo(() => getBaseCurrency(symbol), [symbol]);
+
+  // Fetch macro bias
+  const { data: macroBias } = useQuery({
+    queryKey: ["/api/macro-bias"],
+    queryFn: async () => {
+      const res = await fetch("/api/macro-bias", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!symbol && !!direction,
+  });
+
+  // Fetch COT sentiment for base currency
+  const { data: cotSentiment } = useQuery({
+    queryKey: [`/api/cot/${baseCurrency}/sentiment`],
+    queryFn: async () => {
+      if (!baseCurrency) return null;
+      const res = await fetch(`/api/cot/${baseCurrency}/sentiment`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!baseCurrency && !!symbol && !!direction,
+  });
+
+  // Calculate macro alignment checks
+  const macroAlignment = useMemo(() => {
+    if (!symbol || !direction || !baseCurrency) {
+      return null;
+    }
+
+    const checks = {
+      narrative: { aligned: false, status: "neutral" as "aligned" | "neutral" | "conflicting" },
+      smartMoney: { aligned: false, status: "neutral" as "aligned" | "neutral" | "conflicting" },
+      banks: { aligned: false, status: "neutral" as "aligned" | "neutral" | "conflicting" },
+    };
+
+    // Check 1: Daily Macro Bias (Narrative)
+    if (macroBias?.sentimentScore !== undefined) {
+      const sentimentScore = Number(macroBias.sentimentScore);
+      if (direction === "Long") {
+        checks.narrative.aligned = sentimentScore > 0;
+        checks.narrative.status = sentimentScore > 0 ? "aligned" : sentimentScore < 0 ? "conflicting" : "neutral";
+      } else {
+        checks.narrative.aligned = sentimentScore < 0;
+        checks.narrative.status = sentimentScore < 0 ? "aligned" : sentimentScore > 0 ? "conflicting" : "neutral";
+      }
+    }
+
+    // Check 2: COT Index (Smart Money)
+    if (cotSentiment?.cotIndex !== null && cotSentiment?.cotIndex !== undefined) {
+      const cotIndex = Number(cotSentiment.cotIndex);
+      if (direction === "Long") {
+        checks.smartMoney.aligned = cotIndex > 60;
+        checks.smartMoney.status = cotIndex > 60 ? "aligned" : cotIndex < 40 ? "conflicting" : "neutral";
+      } else {
+        checks.smartMoney.aligned = cotIndex < 40;
+        checks.smartMoney.status = cotIndex < 40 ? "aligned" : cotIndex > 60 ? "conflicting" : "neutral";
+      }
+    }
+
+    // Check 3: Central Bank Policy (Interest Rate Differential)
+    if (macroBias?.centralBankPolicy) {
+      try {
+        const centralBankPolicy = typeof macroBias.centralBankPolicy === 'string' 
+          ? JSON.parse(macroBias.centralBankPolicy)
+          : macroBias.centralBankPolicy;
+
+        // Map currencies to central banks
+        const bankMap: Record<string, string> = {
+          'EUR': 'ECB',
+          'GBP': 'BoE',
+          'JPY': 'BoJ',
+          'DXY': 'FED', // For USD
+        };
+
+        const baseBank = bankMap[baseCurrency];
+        
+        // Determine quote currency from symbol
+        // For EURUSD, GBPUSD: quote is USD (FED)
+        // For USDJPY: base is USD (FED), quote is JPY (BoJ)
+        let quoteBank: string | null = 'FED'; // Default to USD/FED
+        
+        if (baseCurrency === 'DXY') {
+          // Symbol starts with USD, extract quote (e.g., USDJPY -> JPY)
+          const upperSymbol = symbol.toUpperCase();
+          const last3 = upperSymbol.length >= 6 ? upperSymbol.substring(3, 6) : null;
+          if (last3 && bankMap[last3]) {
+            quoteBank = bankMap[last3];
+          } else {
+            quoteBank = null; // Can't determine quote
+          }
+        } else {
+          // For pairs like EURUSD, GBPUSD, the quote is typically USD
+          // But we could also check the symbol to be sure
+          quoteBank = 'FED'; // Most major pairs quote USD
+        }
+
+        if (baseBank && centralBankPolicy[baseBank] && quoteBank && centralBankPolicy[quoteBank]) {
+          const basePolicyScore = Number(centralBankPolicy[baseBank].policyScore) || 0;
+          const quotePolicyScore = Number(centralBankPolicy[quoteBank].policyScore) || 0;
+
+          if (direction === "Long") {
+            // For Long: Base currency should be more hawkish (higher rates) than quote
+            // Higher policy score = more hawkish = higher interest rates = currency strength
+            checks.banks.aligned = basePolicyScore > quotePolicyScore;
+            checks.banks.status = basePolicyScore > quotePolicyScore 
+              ? "aligned" 
+              : basePolicyScore < quotePolicyScore 
+                ? "conflicting" 
+                : "neutral";
+          } else {
+            // For Short: Quote currency should be more hawkish (higher rates) than base
+            // Higher policy score = more hawkish = higher interest rates = currency strength
+            checks.banks.aligned = quotePolicyScore > basePolicyScore;
+            checks.banks.status = quotePolicyScore > basePolicyScore 
+              ? "aligned" 
+              : quotePolicyScore < basePolicyScore 
+                ? "conflicting" 
+                : "neutral";
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing central bank policy:", error);
+      }
+    }
+
+    // Count aligned/conflicting checks
+    const alignedCount = Object.values(checks).filter(c => c.status === "aligned").length;
+    const conflictingCount = Object.values(checks).filter(c => c.status === "conflicting").length;
+
+    return {
+      checks,
+      alignedCount,
+      conflictingCount,
+      overallStatus: alignedCount === 3 ? "high-probability" : conflictingCount >= 2 ? "counter-trend" : "neutral",
+    };
+  }, [symbol, direction, baseCurrency, macroBias, cotSentiment]);
+
   // Save/Update trade mutation
   const saveTradeMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -585,6 +855,71 @@ export default function NewEntry() {
       }
     }
 
+    // TIMEZONE CONVERSION: Only apply to NEW trades (not edits)
+    // Check if account has a non-zero serverTimezone and convert entryTime to UTC
+    let finalEntryTime = entryTime || null;
+    if (!editingId && accountId && accounts && entryTime) {
+      const account = accounts.find(a => a.id === accountId);
+      
+      // Debug logging
+      console.log("🕐 Timezone Conversion Debug:", {
+        editingId,
+        accountId,
+        hasAccounts: !!accounts,
+        hasEntryTime: !!entryTime,
+        account: account ? { id: account.id, name: account.name, serverTimezone: account.serverTimezone } : null,
+      });
+      
+      if (account) {
+        // Handle serverTimezone: it might be null, undefined, string "0", or number 0
+        const serverTimezoneRaw = account.serverTimezone;
+        const serverTimezone = serverTimezoneRaw !== null && serverTimezoneRaw !== undefined 
+          ? Number(serverTimezoneRaw) 
+          : 0;
+        
+        console.log("🕐 Server Timezone:", { raw: serverTimezoneRaw, parsed: serverTimezone });
+        
+        if (serverTimezone !== 0) {
+          try {
+            // Parse the entryTime (HH:MM format)
+            const [hours, minutes] = entryTime.split(':').map(Number);
+            if (!isNaN(hours) && !isNaN(minutes)) {
+              // Create a date object with the server time
+              const dateStr = entryDate && typeof entryDate === 'string' && entryDate.trim() !== ''
+                ? String(entryDate).trim()
+                : new Date().toISOString().split('T')[0];
+              
+              // Create date at server timezone (treat as local time, then adjust)
+              const serverDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`);
+              
+              // Subtract the timezone offset to convert to UTC
+              // If serverTimezone is +2, we subtract 2 hours to get UTC
+              const utcDate = new Date(serverDate.getTime() - (serverTimezone * 60 * 60 * 1000));
+              
+              // Extract UTC hours and minutes
+              const utcHours = utcDate.getUTCHours();
+              const utcMinutes = utcDate.getUTCMinutes();
+              
+              // Format back to HH:MM
+              finalEntryTime = `${String(utcHours).padStart(2, '0')}:${String(utcMinutes).padStart(2, '0')}`;
+              
+              console.log(`🕐 Timezone conversion: ${entryTime} (GMT+${serverTimezone}) → ${finalEntryTime} (UTC)`);
+            } else {
+              console.warn("🕐 Failed to parse entryTime:", entryTime);
+            }
+          } catch (error) {
+            console.error("🕐 Error converting timezone:", error);
+            // Fallback to original time if conversion fails
+            finalEntryTime = entryTime;
+          }
+        } else {
+          console.log("🕐 No timezone conversion needed (serverTimezone is 0 or not set)");
+        }
+      } else {
+        console.warn("🕐 Account not found for timezone conversion:", accountId);
+      }
+    }
+
     // Fix Date (The "Noon" Safety Lock) - Decouple Date and Time to prevent timezone bugs
     let entryDateString: string | null = null;
     if (entryDate && typeof entryDate === 'string' && entryDate.trim() !== '') {
@@ -634,7 +969,7 @@ export default function NewEntry() {
       setup: setup || null,
       marketRegime: marketRegime || null,
       conviction: conviction || null,
-      entryTime: entryTime || null,
+      entryTime: finalEntryTime,
       entryDate: entryDateString,
     };
 
@@ -710,7 +1045,7 @@ export default function NewEntry() {
             </Link>
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight font-heading">
                   {editingId ? "Edit Trade Entry" : "New Trade Entry"}
                 </h1>
                 <p className="text-xs md:text-sm text-muted-foreground mt-1">
@@ -903,6 +1238,82 @@ export default function NewEntry() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Macro Alignment Section */}
+                  {symbol && direction && (
+                    <div className="space-y-3 p-4 rounded-lg border bg-card/30 border-border/50">
+                      <Label className="text-sm font-semibold flex items-center gap-2">
+                        <Target className="h-4 w-4" />
+                        Macro Alignment
+                      </Label>
+                      
+                      {!baseCurrency ? (
+                        <p className="text-xs text-muted-foreground">
+                          Symbol not supported for macro analysis
+                        </p>
+                      ) : macroAlignment ? (
+                        <>
+                          {/* Alignment Icons */}
+                          <div className="flex items-center gap-4 flex-wrap">
+                            {/* Narrative Check */}
+                            <div className="flex items-center gap-2">
+                              {macroAlignment.checks.narrative.status === "aligned" ? (
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                              ) : macroAlignment.checks.narrative.status === "conflicting" ? (
+                                <XCircle className="h-5 w-5 text-red-500" />
+                              ) : (
+                                <Minus className="h-5 w-5 text-gray-500" />
+                              )}
+                              <span className="text-xs text-muted-foreground">Narrative</span>
+                            </div>
+
+                            {/* Smart Money Check */}
+                            <div className="flex items-center gap-2">
+                              {macroAlignment.checks.smartMoney.status === "aligned" ? (
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                              ) : macroAlignment.checks.smartMoney.status === "conflicting" ? (
+                                <XCircle className="h-5 w-5 text-red-500" />
+                              ) : (
+                                <Minus className="h-5 w-5 text-gray-500" />
+                              )}
+                              <span className="text-xs text-muted-foreground">Smart Money</span>
+                            </div>
+
+                            {/* Banks Check */}
+                            <div className="flex items-center gap-2">
+                              {macroAlignment.checks.banks.status === "aligned" ? (
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                              ) : macroAlignment.checks.banks.status === "conflicting" ? (
+                                <XCircle className="h-5 w-5 text-red-500" />
+                              ) : (
+                                <Minus className="h-5 w-5 text-gray-500" />
+                              )}
+                              <span className="text-xs text-muted-foreground">Banks</span>
+                            </div>
+                          </div>
+
+                          {/* Status Badge */}
+                          {macroAlignment.overallStatus === "high-probability" && (
+                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              High Probability Macro Alignment
+                            </Badge>
+                          )}
+                          {macroAlignment.overallStatus === "counter-trend" && (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Counter-Trend Trade Detected
+                            </Badge>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Analyzing macro alignment...
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Quantity */}
                   <div className="space-y-2">
@@ -1311,7 +1722,12 @@ export default function NewEntry() {
                         <div className="space-y-2">
                           <Label htmlFor="entryTime" className="flex items-center gap-2">
                             <Clock className="h-3.5 w-3.5" />
-                            Entry Time (24h)
+                            {(() => {
+                              // Check if account has non-zero timezone
+                              const account = accounts?.find(a => a.id === accountId);
+                              const hasServerTimezone = account && account.serverTimezone && Number(account.serverTimezone) !== 0;
+                              return hasServerTimezone ? "Entry Time (Server Time)" : "Entry Time (24h)";
+                            })()}
                           </Label>
                           <div className="space-y-1">
                             <Input
@@ -1324,14 +1740,26 @@ export default function NewEntry() {
                               maxLength={5}
                             />
                             {entryTime && entryTime.includes(':') && (
-                              <p className="text-xs text-muted-foreground">
-                                {format12Hour(entryTime)}
+                              <p className="text-xs text-muted-foreground font-medium">
+                                {getTimezonePreview() || format12Hour(entryTime)}
                               </p>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            What time did you enter? (For session analysis) - Type 4 digits (e.g., 1323 → 13:23)
-                          </p>
+                          {entryTime && entryTime.includes(':') ? (
+                            <p className="text-xs text-muted-foreground">
+                              {(() => {
+                                const account = accounts?.find(a => a.id === accountId);
+                                const serverTimezone = account?.serverTimezone ? Number(account.serverTimezone) : 0;
+                                return serverTimezone !== 0 
+                                  ? `Timezone conversion active (GMT${serverTimezone >= 0 ? '+' : ''}${serverTimezone})`
+                                  : 'What time did you enter? (For session analysis)';
+                              })()}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              What time did you enter? (For session analysis) - Type 4 digits (e.g., 1323 → 13:23)
+                            </p>
+                          )}
                         </div>
                         
                         <div className="space-y-2">

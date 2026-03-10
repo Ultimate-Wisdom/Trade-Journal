@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Trade } from "@/lib/mockData";
 import { calculateTopStrategyRRRCombos } from "@/lib/mockData";
+import { calculateAverageRR } from "@/lib/utils";
 import generatedImage from "@assets/generated_images/abstract_financial_data_visualization_dark_mode.png";
 
 /**
@@ -26,27 +27,6 @@ function calculateRRR(
   const reward = Math.abs(tpNum - entryNum);
   if (risk === 0) return null;
   return reward / risk;
-}
-
-/**
- * Calculate average Risk:Reward Ratio
- */
-function calculateAverageRR(trades: Trade[]): number {
-  let totalRR = 0;
-  let rrCount = 0;
-  trades.forEach((trade) => {
-    const calculatedRR = calculateRRR(
-      trade.entryPrice,
-      trade.slPrice,
-      trade.tpPrice,
-      trade.direction
-    );
-    if (calculatedRR !== null) {
-      totalRR += calculatedRR;
-      rrCount++;
-    }
-  });
-  return rrCount > 0 ? totalRR / rrCount : 0;
 }
 
 /**
@@ -538,7 +518,7 @@ export function WeeklyInsight({ trades }: WeeklyInsightProps) {
       />
       <div className="relative z-10 p-3 md:p-6 flex flex-col justify-end h-full">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm md:text-lg font-bold">Strategic Intelligence</h3>
+          <h3 className="text-sm md:text-lg font-bold font-heading">Strategic Intelligence</h3>
           <button
             onClick={fetchInsight}
             disabled={loading}
@@ -560,10 +540,10 @@ export function WeeklyInsight({ trades }: WeeklyInsightProps) {
               <span
                 className={`font-bold ${
                   insight.status === "OPTIMAL"
-                    ? "text-success-green"
+                    ? "text-profit"
                     : insight.status === "CAUTION"
                     ? "text-yellow-500"
-                    : "text-red-500"
+                    : "text-loss"
                 }`}
               >
                 {insight.status}

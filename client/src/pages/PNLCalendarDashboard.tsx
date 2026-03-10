@@ -294,7 +294,7 @@ export default function PNLCalendarDashboard() {
       <main className="flex-1 overflow-y-auto pt-20">
         <div className="container mx-auto px-4 py-6 md:p-8 max-w-7xl">
           <header className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Trading Calendar</h1>
+            <h1 className="text-3xl font-bold tracking-tight font-heading">Trading Calendar</h1>
             <p className="text-sm text-muted-foreground mt-1">Professional P&L tracking with daily analytics.</p>
           </header>
 
@@ -372,7 +372,7 @@ export default function PNLCalendarDashboard() {
                   <span className="text-muted-foreground text-xs font-medium whitespace-nowrap">
                     Monthly P&L
                   </span>
-                  <span className={`font-bold text-base ${monthlyStats.totalPNL >= 0 ? "text-success-green" : "text-red-500"}`}>
+                  <span className={`font-bold tabular-nums text-base ${monthlyStats.totalPNL >= 0 ? "text-profit" : "text-loss"}`}>
                     {monthlyStats.totalPNL >= 0 ? "+" : ""}${maskValue(Math.abs(monthlyStats.totalPNL))}
                   </span>
                   <span className="text-muted-foreground">•</span>
@@ -434,7 +434,7 @@ export default function PNLCalendarDashboard() {
                                       {/* PnL Value - Tiny but bold, no wrapping - Using scale transform to bypass browser limits */}
                                       <span
                                         className={`inline-block font-mono font-black text-[10px] scale-75 origin-center leading-none tracking-[-0.1em] whitespace-nowrap md:text-sm md:scale-100 md:tracking-normal ${
-                                          day.pnl > 0 ? "text-success-green" : "text-red-500"
+                                          day.pnl > 0 ? "text-profit" : "text-loss"
                                         }`}
                                         style={{ letterSpacing: '-0.1em', wordBreak: 'keep-all', overflowWrap: 'normal' }}
                                       >
@@ -474,7 +474,7 @@ export default function PNLCalendarDashboard() {
                         {/* PnL Value - Hero Element (Large, Extrabold, Colored) */}
                         <div
                           className={`font-mono font-extrabold text-sm md:text-lg leading-tight ${
-                            weekPnL > 0 ? "text-success-green" : weekPnL < 0 ? "text-red-500" : "text-muted-foreground"
+                            weekPnL > 0 ? "text-profit" : weekPnL < 0 ? "text-loss" : "text-muted-foreground"
                           }`}
                         >
                           {maskValue(Math.abs(weekPnL)).includes("****") 
@@ -543,7 +543,7 @@ export default function PNLCalendarDashboard() {
                 <CardTitle className="text-xs md:text-sm">Avg P&L Per Trade</CardTitle>
               </CardHeader>
               <CardContent className="px-2 pb-3 md:px-6 md:pb-6">
-                <p className="text-xl md:text-3xl font-black tracking-tight text-success-green">
+                <p className="text-xl md:text-3xl font-black tracking-tight tabular-nums text-profit">
                   ${monthlyStats.totalTrades > 0 ? maskValue(Math.round(monthlyStats.totalPNL / monthlyStats.totalTrades)) : maskValue(0)}
                 </p>
                 <p className="text-xs text-muted-foreground font-medium mt-1 md:mt-2">
@@ -557,7 +557,7 @@ export default function PNLCalendarDashboard() {
                 <CardTitle className="text-xs md:text-sm">Best Trading Day</CardTitle>
               </CardHeader>
               <CardContent className="px-2 pb-3 md:px-6 md:pb-6">
-                <p className="text-xl md:text-3xl font-black tracking-tight text-success-green">
+                <p className="text-xl md:text-3xl font-black tracking-tight tabular-nums text-profit">
                   {(() => {
                     const positiveDays = calendarData.filter((d) => d.pnl > 0);
                     if (positiveDays.length === 0) return "—";
@@ -582,14 +582,14 @@ export default function PNLCalendarDashboard() {
                   let colorClass = "text-muted-foreground"; // Default
                   if (typeof profitFactor === "number") {
                     if (profitFactor > 1.5) {
-                      colorClass = "text-success-green"; // Excellent
+                      colorClass = "text-profit";
                     } else if (profitFactor >= 1.0) {
-                      colorClass = "text-yellow-500"; // Sustainable
+                      colorClass = "text-yellow-500";
                     } else {
-                      colorClass = "text-red-500"; // Unprofitable
+                      colorClass = "text-loss";
                     }
                   } else if (profitFactor === "∞") {
-                    colorClass = "text-success-green"; // Infinite (all wins)
+                    colorClass = "text-profit";
                   }
                   
                   const displayValue = typeof profitFactor === "number" 
@@ -598,7 +598,7 @@ export default function PNLCalendarDashboard() {
                   
                   return (
                     <>
-                      <p className="text-xl md:text-3xl font-black tracking-tight text-success-green">
+                      <p className={`text-xl md:text-3xl font-black tracking-tight tabular-nums ${colorClass}`}>
                         {displayValue}
                       </p>
                       <p className="text-xs text-muted-foreground font-medium mt-1 md:mt-2">

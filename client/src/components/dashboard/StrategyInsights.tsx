@@ -40,7 +40,7 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
     <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
       <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
         <CardHeader className="pb-3 md:pb-6">
-          <CardTitle className="text-base md:text-lg flex items-center gap-2">
+          <CardTitle className="text-base md:text-lg flex items-center gap-2 font-heading">
             <TrendingUp className="h-5 w-5" />
             Strategy Winrates
           </CardTitle>
@@ -60,8 +60,8 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
                   
                   {/* Row 2: Win Rate Percentage */}
                   <p
-                    className={`text-sm font-medium mt-1 ${
-                      strategy.winrate >= 50 ? "text-success-green" : "text-rose-500"
+                    className={`text-sm font-medium tabular-nums mt-1 ${
+                      strategy.winrate >= 50 ? "text-profit" : "text-loss"
                     }`}
                   >
                     {strategy.winrate.toFixed(1)}%
@@ -145,7 +145,7 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
 
       <Card className="border-sidebar-border bg-card/50 backdrop-blur-sm">
         <CardHeader className="pb-3 md:pb-6">
-          <CardTitle className="text-base md:text-lg">Top 3 Strategy + RRR</CardTitle>
+          <CardTitle className="text-base md:text-lg font-heading">Top 3 Strategy + R:R</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -163,10 +163,10 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
                       variant="outline"
                       className={`px-1.5 py-0.5 text-[10px] ${
                         combo.winrate >= 60 
-                          ? "border-success-green/50 bg-success-green/10 text-success-green" 
+                          ? "border-profit/50 bg-profit/10 text-profit" 
                           : combo.winrate >= 50 
                           ? "border-primary/50 bg-primary/10 text-primary" 
-                          : "border-rose-500/50 bg-rose-500/10 text-rose-500"
+                          : "border-loss/50 bg-loss/10 text-loss"
                       }`}
                     >
                       {combo.winrate.toFixed(1)}%
@@ -175,7 +175,7 @@ export function StrategyInsights({ trades, onRemoveStrategy, title = "Strategy I
                       variant="outline" 
                       className="px-1.5 py-0.5 text-[10px] border-amber-500/50 bg-amber-500/10 text-amber-500"
                     >
-                      Avg R:R {combo.rrr}
+                      R:R {combo.rrr}
                     </Badge>
                   </div>
                   

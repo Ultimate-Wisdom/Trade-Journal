@@ -117,7 +117,7 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
     return (
       <Card className="border-sidebar-border bg-card/50">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 font-heading">
             <Clock className="h-4 w-4 text-primary" />
             Session Analysis
           </CardTitle>
@@ -126,10 +126,10 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              No entry time data available
+              No entry time data yet
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Add entry times to your trades to see session analysis
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Add entry times to your trades to unlock session analysis
             </p>
           </div>
         </CardContent>
@@ -143,7 +143,7 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
   return (
     <Card className="border-sidebar-border bg-card/50">
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="text-base flex items-center gap-2 font-heading">
           <Clock className="h-4 w-4 text-primary" />
           Session Analysis
         </CardTitle>
@@ -154,26 +154,26 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
       <CardContent className="space-y-4">
         {/* Best & Worst Sessions */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg bg-success-green/10 border border-success-green/20">
+          <div className="p-3 rounded-lg bg-profit/10 border border-profit/20">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-3.5 w-3.5 text-success-green" />
-              <p className="text-xs font-medium text-success-green">Best Session</p>
+              <TrendingUp className="h-3.5 w-3.5 text-profit" />
+              <p className="text-xs font-medium text-profit">Best Session</p>
             </div>
             <p className="text-sm font-bold">{bestSession.session}</p>
             <p className="text-xs text-muted-foreground">{bestSession.timeRange}</p>
-            <p className="text-lg font-bold text-success-green mt-1">
+            <p className="text-lg font-bold tabular-nums text-profit mt-1">
               {bestSession.winRate.toFixed(1)}%
             </p>
           </div>
 
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+          <div className="p-3 rounded-lg bg-loss/10 border border-loss/20">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="h-3.5 w-3.5 text-red-500" />
-              <p className="text-xs font-medium text-red-500">Worst Session</p>
+              <TrendingDown className="h-3.5 w-3.5 text-loss" />
+              <p className="text-xs font-medium text-loss">Worst Session</p>
             </div>
             <p className="text-sm font-bold">{worstSession.session}</p>
             <p className="text-xs text-muted-foreground">{worstSession.timeRange}</p>
-            <p className="text-lg font-bold text-red-500 mt-1">
+            <p className="text-lg font-bold tabular-nums text-loss mt-1">
               {worstSession.winRate.toFixed(1)}%
             </p>
           </div>
@@ -192,7 +192,7 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium">{stat.session}</p>
                     {idx === 0 && (
-                      <Badge variant="outline" className="text-xs bg-success-green/10 text-success-green border-success-green/20">
+                      <Badge variant="outline" className="text-xs bg-profit/10 text-profit border-profit/20">
                         Best
                       </Badge>
                     )}
@@ -202,13 +202,13 @@ export function SessionAnalysis({ trades }: SessionAnalysisProps) {
               </div>
 
               <div className="text-right space-y-0.5">
-                <p className={`text-lg font-bold ${stat.winRate >= 50 ? "text-success-green" : "text-red-500"}`}>
+                <p className={`text-lg font-bold tabular-nums ${stat.winRate >= 50 ? "text-profit" : "text-loss"}`}>
                   {stat.winRate.toFixed(1)}%
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {stat.wins}W / {stat.losses}L ({stat.totalTrades} total)
                 </p>
-                <p className={`text-xs font-mono ${stat.avgPnL >= 0 ? "text-success-green" : "text-red-500"}`}>
+                <p className={`text-xs font-mono tabular-nums ${stat.avgPnL >= 0 ? "text-profit" : "text-loss"}`}>
                   Avg: {stat.avgPnL >= 0 ? "+" : ""}${stat.avgPnL.toFixed(2)}
                 </p>
               </div>

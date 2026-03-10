@@ -147,10 +147,10 @@ export function MultitimeframeAnalysis({ trades }: MultitimeframeAnalysisProps) 
             <Badge
               className={`text-xs ${
                 item.winRate >= 60
-                  ? "bg-green-500/20 text-green-500"
+                  ? "bg-profit/20 text-profit"
                   : item.winRate >= 40
                   ? "bg-yellow-500/20 text-yellow-500"
-                  : "bg-red-500/20 text-red-500"
+                  : "bg-loss/20 text-loss"
               }`}
             >
               {item.winRate.toFixed(0)}%
@@ -164,14 +164,14 @@ export function MultitimeframeAnalysis({ trades }: MultitimeframeAnalysisProps) 
             <div className="flex justify-between">
               <span className="text-muted-foreground">W/L:</span>
               <span className="font-bold">
-                <span className="text-green-500">{item.wins}</span>
+                <span className="text-profit">{item.wins}</span>
                 {"/"}
-                <span className="text-red-500">{item.losses}</span>
+                <span className="text-loss">{item.losses}</span>
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">P&L:</span>
-              <span className={`font-bold font-mono ${item.pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+              <span className={`font-bold font-mono tabular-nums ${item.pnl >= 0 ? "text-profit" : "text-loss"}`}>
                 {item.pnl >= 0 ? "+" : ""}${item.pnl.toFixed(0)}
               </span>
             </div>

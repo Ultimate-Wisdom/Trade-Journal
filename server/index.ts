@@ -112,4 +112,13 @@ app.use((req, res, next) => {
     log(`serving on port ${port}`);
     console.log(`🚀 Server ready at http://localhost:${port}`);
   });
+
+  // Start macro bias scheduler (runs daily at 6:00 AM London Time)
+  try {
+    const { startMacroBiasSchedulerCron, startCOTSchedulerCron } = await import("./services/scheduler");
+    await startMacroBiasSchedulerCron();
+    await startCOTSchedulerCron();
+  } catch (error) {
+    console.warn("⚠️ Could not start schedulers:", error);
+  }
 })();
